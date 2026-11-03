@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>markfind</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>markfind</h1>
+      <p class="stats" id="stats" aria-live="polite"></p>
+    </div>
+    <nav class="tabs" aria-label="Views">
+      <button type="button" class="tab" id="tab-search" aria-pressed="true">Search</button>
+      <button type="button" class="tab" id="tab-broken" aria-pressed="false">Dead links</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="view-search">
+      <div class="searchbar">
+        <input id="q" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Search your bookmarks…  (press / to focus)"
+               aria-label="Search your bookmarks">
+        <label class="option" title="Use SQLite FTS5 syntax: OR, NOT, &quot;phrases&quot;, prefix*, title:word">
+          <input id="raw" type="checkbox"> Advanced syntax
+        </label>
+      </div>
+      <p class="status" id="search-status" aria-live="polite"></p>
+      <ol class="results" id="results"></ol>
+    </section>
+
+    <section id="view-broken" hidden>
+      <div class="toolbar">
+        <p class="hint">Bookmarks whose pages are gone (HTTP 404/410) or whose site no longer exists.</p>
+        <label class="option"><input id="show-all" type="checkbox"> Show every failure</label>
+      </div>
+      <p class="status" id="broken-status" aria-live="polite"></p>
+      <div id="broken"></div>
+    </section>
+  </main>
+</body>
+</html>

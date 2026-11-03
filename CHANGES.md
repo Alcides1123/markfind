@@ -5,6 +5,11 @@
 - `markfind import` reads Firefox's `places.sqlite` directly, so there's no
   need to export to HTML. It reads a temporary copy, including recent changes
   in the WAL file, and skips tags (#7).
+- New `markfind serve`: a local, read-only web interface with
+  search-as-you-type, highlighted snippets, a dead-links view and stats.
+  Standard library only. It listens on 127.0.0.1 by default and is protected
+  against DNS rebinding, with a strict Content-Security-Policy (#11).
+- `Store(path, readonly=True)` opens an existing database without writing.
 
 - Documentation in `docs/`: getting started, command reference, how it
   works, Python API, and development guide.

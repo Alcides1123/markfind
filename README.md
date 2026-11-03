@@ -51,6 +51,9 @@ python -m pip install -e .
       ...how to tune [SQLite] full-text [indexes] for speed...
    ```
 
+3. **Or search in your browser:** `markfind serve --open` starts a local page
+   where results update as you type.
+
 ### Commands
 
 | Command | What it does |
@@ -61,6 +64,7 @@ python -m pip install -e .
 | `markfind list [--folder PATH]` | List bookmarks, optionally one folder and its subfolders. |
 | `markfind broken [--all] [--kind KIND] [--urls]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `other`); `--urls` prints bare URLs for scripting. |
 | `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
+| `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, plus a dead-links view. Local and read-only. |
 
 When indexing a page, markfind skips navigation, footers, sidebars, cookie
 banners and similar boilerplate, and keeps only the `<main>` / `<article>`

@@ -10,7 +10,7 @@ markfind [--db PATH] COMMAND [options]
 | `--version` | Print the version and exit. |
 
 Commands: [`import`](#import) · [`fetch`](#fetch) · [`search`](#search) ·
-[`list`](#list) · [`broken`](#broken) · [`stats`](#stats)
+[`list`](#list) · [`broken`](#broken) · [`stats`](#stats) · [`serve`](#serve)
 
 ---
 
@@ -209,3 +209,51 @@ pending:   0
 ```
 
 `pending` counts bookmarks that have never been fetched.
+
+---
+
+## serve
+
+```text
+markfind serve [--host HOST] [--port PORT] [--open]
+```
+
+Starts a local web interface for your bookmarks, then keeps running until you
+press `Ctrl+C`.
+
+```text
+$ markfind serve --open
+markfind is serving /home/you/.markfind.sqlite at http://127.0.0.1:8737/ (Ctrl+C to stop)
+```
+
+| Option | Meaning |
+|---|---|
+| `--host HOST` | Address to listen on. Default `127.0.0.1`, which means only this computer. |
+| `--port PORT` | Port. Default `8737`. |
+| `--open` | Open the page in your default browser. |
+
+The page has two views:
+
+- **Search:** results update as you type. Matching words are highlighted, and
+  each result shows its folder and URL and opens in a new tab. Tick *Advanced
+  syntax* to use the [`--raw` query syntax](#raw-queries---raw). The query is
+  kept in the page address, so you can bookmark or share a search.
+- **Dead links:** the [`broken`](#broken) report grouped by kind, with a
+  switch to show every failure.
+
+Keyboard: `/` jumps to the search box and `Esc` clears it.
+
+The interface is **read-only**. It never changes your bookmarks, so it's safe
+to keep it open while `markfind import` or `markfind fetch` runs; new results
+appear on the next search.
+
+**Security.** The server only listens on this computer unless you pass
+`--host`. Binding to another address, such as `--host 0.0.0.0`, prints a
+warning, because anyone who can reach that address can search your bookmarks.
+On a local address, requests that name any other host are refused (`403`),
+which blocks a known trick ("DNS rebinding") that would let a website read
+the page. Page text from bookmarked sites is always displayed as plain text,
+and a strict Content-Security-Policy blocks any script but markfind's own.
+
+Exit code 1 if the server can't start, for example because the port is in
+use. Choose another with `--port`.

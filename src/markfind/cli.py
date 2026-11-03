@@ -20,6 +20,7 @@ from .fetch import (
     fetch_page,
 )
 from .importers import load_file
+from .server import DEFAULT_HOST, DEFAULT_PORT, serve
 from .store import QueryError, Store, to_fts_query
 
 _DURATION_UNITS = {"h": "hours", "d": "days", "w": "weeks"}
@@ -131,6 +132,18 @@ def cmd_stats(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(store: Store, args: argparse.Namespace) -> int:
+    # The CLI's own Store has already created / migrated the database; the
+    # server opens its own read-only connections per request.
+    store.close()
+    try:
+        serve(args.db_path, host=args.host, port=args.port, open_browser=args.open)
+    except OSError as exc:
+        print(f"error: could not start server on {args.host}:{args.port}: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_broken(store: Store, args: argparse.Namespace) -> int:
     if args.kind:
         kinds: tuple[str, ...] | None = tuple(args.kind)
@@ -238,12 +251,27 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--urls", action="store_true", help="print only URLs, one per line")
     p.set_defaults(func=cmd_broken)
 
+    p = sub.add_parser(
+        "serve",
+        help="search your bookmarks in a web browser",
+        description="Start a local, read-only web interface for searching your bookmarks.",
+    )
+    p.add_argument(
+        "--host",
+        default=DEFAULT_HOST,
+        help=f"address to listen on (default: {DEFAULT_HOST}, this computer only)",
+    )
+    p.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"port (default: {DEFAULT_PORT})")
+    p.add_argument("--open", action="store_true", help="open the page in your web browser")
+    p.set_defaults(func=cmd_serve)
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    with Store(args.db or default_db_path()) as store:
+    args.db_path = args.db or default_db_path()
+    with Store(args.db_path) as store:
         return args.func(store, args)
 
 
