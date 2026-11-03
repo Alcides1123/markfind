@@ -97,6 +97,15 @@ them. Common causes and fixes:
 If only a few sites fail, those sites likely have expired or misconfigured
 certificates; see them with `markfind broken --kind ssl`.
 
+## Documentation and examples
+
+- [Getting started](docs/getting-started.md): install, export, first search
+- [Command reference](docs/cli.md): every option, advanced search syntax
+- [How it works](docs/how-it-works.md): extraction, ranking, schema
+- [Python API](docs/python-api.md): use markfind from your own code
+- [Examples](examples/README.md): an offline demo, a Markdown export script,
+  and scheduled refresh scripts. Try `python examples/offline_demo.py`.
+
 ## Development
 
 ```sh
@@ -107,15 +116,9 @@ ruff check . && ruff format --check .
 
 Every push runs [CI](.github/workflows/ci.yml): ruff lint and format checks,
 the test suite on Linux and Windows (Python 3.10–3.13), and a package
-build with a smoke test of the installed wheel.
-
-Code layout (`src/markfind/`):
-
-- `importers.py` — parses Netscape HTML exports and Chrome JSON
-- `fetch.py` — concurrent page downloads
-- `extract.py` — HTML → plain text
-- `store.py` — SQLite schema, FTS5 index, search
-- `cli.py` — command-line interface
+build with a smoke test of the installed wheel. See
+[docs/development.md](docs/development.md) for the workflow, schema
+migrations and releases.
 
 Planned work is in [ROADMAP.md](ROADMAP.md).
 

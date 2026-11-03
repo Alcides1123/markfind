@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Documentation in `docs/`: getting started, command reference, how it
+  works, Python API, and development guide.
+- Examples in `examples/`: an offline demo, a sample bookmark export, a
+  Markdown export script, and scheduled refresh scripts for cron and
+  Windows Task Scheduler. The test suite runs them.
+
 - Page text extraction now drops navigation, headers, footers, sidebars,
   forms, cookie banners, share widgets and hidden elements, detected by tag,
   ARIA role, and class / id names.
