@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS bookmarks (
     folder TEXT NOT NULL DEFAULT '',
     added_at TEXT,
     fetched_at TEXT,
-    fetch_error TEXT
+    fetch_error TEXT,
+    error_kind TEXT  -- one of fetch.ERROR_KINDS when fetch_error is set
 );
 
 -- rowid matches bookmarks.id
@@ -30,6 +31,20 @@ CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_fts USING fts5(
     tokenize = 'porter unicode61 remove_diacritics 2'
 );
 """
+
+
+def _add_error_kind(db: sqlite3.Connection) -> None:
+    columns = {row[1] for row in db.execute("PRAGMA table_info(bookmarks)")}
+    if "error_kind" not in columns:
+        db.execute("ALTER TABLE bookmarks ADD COLUMN error_kind TEXT")
+        db.execute("UPDATE bookmarks SET error_kind = 'other' WHERE fetch_error IS NOT NULL")
+
+
+# Applied in order to databases whose PRAGMA user_version is lower than their
+# position + 1; SCHEMA always describes the latest version, so every migration
+# must also be a no-op on a freshly created database.
+MIGRATIONS = [_add_error_kind]
+SCHEMA_VERSION = len(MIGRATIONS)
 
 # bm25() weights, in bookmarks_fts column order: title, url, body, folder.
 RANK_WEIGHTS = (5.0, 1.0, 2.0, 1.0)
@@ -48,10 +63,21 @@ class SearchResult:
 
 
 @dataclass(frozen=True)
+class Failure:
+    url: str
+    title: str
+    folder: str
+    kind: str
+    error: str
+    fetched_at: str
+
+
+@dataclass(frozen=True)
 class Stats:
     total: int
     fetched: int
     failed: int
+    failed_by_kind: dict[str, int]
 
 
 def _now() -> str:
@@ -71,6 +97,19 @@ class Store:
     def __init__(self, path: str | Path) -> None:
         self.db = sqlite3.connect(str(path))
         self.db.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        version = self.db.execute("PRAGMA user_version").fetchone()[0]
+        if version > SCHEMA_VERSION:
+            raise RuntimeError(
+                f"database schema version {version} is newer than this markfind "
+                f"supports ({SCHEMA_VERSION}); upgrade markfind"
+            )
+        with self.db:
+            for migration in MIGRATIONS[version:]:
+                migration(self.db)
+            self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def close(self) -> None:
         self.db.close()
@@ -148,7 +187,7 @@ class Store:
             self.db.execute(
                 """
                 UPDATE bookmarks
-                SET fetched_at = ?, fetch_error = NULL,
+                SET fetched_at = ?, fetch_error = NULL, error_kind = NULL,
                     title = CASE WHEN title = '' THEN ? ELSE title END
                 WHERE id = ?
                 """,
@@ -156,12 +195,25 @@ class Store:
             )
             self._reindex(id_, text)
 
-    def set_error(self, id_: int, message: str) -> None:
+    def set_error(self, id_: int, message: str, kind: str = "other") -> None:
         with self.db:
             self.db.execute(
-                "UPDATE bookmarks SET fetched_at = ?, fetch_error = ? WHERE id = ?",
-                (_now(), message, id_),
+                "UPDATE bookmarks SET fetched_at = ?, fetch_error = ?, error_kind = ? WHERE id = ?",
+                (_now(), message, kind, id_),
             )
+
+    def failures(self, kinds: Iterable[str] | None = None) -> list[Failure]:
+        """Bookmarks whose last fetch failed, optionally only some error kinds."""
+        sql = """
+            SELECT url, title, folder, error_kind, fetch_error, fetched_at
+            FROM bookmarks WHERE fetch_error IS NOT NULL
+        """
+        params: list[str] = []
+        if kinds is not None:
+            params = list(kinds)
+            sql += f" AND error_kind IN ({', '.join('?' * len(params))})"
+        sql += " ORDER BY error_kind, folder, title, url"
+        return [Failure(*row) for row in self.db.execute(sql, params)]
 
     def search(
         self, query: str, limit: int = 20, mark: tuple[str, str] = ("[", "]")
@@ -207,4 +259,11 @@ class Store:
             FROM bookmarks
             """
         ).fetchone()
-        return Stats(*row)
+        by_kind = self.db.execute(
+            """
+            SELECT error_kind, count(*) FROM bookmarks
+            WHERE fetch_error IS NOT NULL
+            GROUP BY error_kind ORDER BY count(*) DESC, error_kind
+            """
+        ).fetchall()
+        return Stats(*row, failed_by_kind=dict(by_kind))
