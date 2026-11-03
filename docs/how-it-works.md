@@ -31,6 +31,22 @@ with `/`. `ADD_DATE` (Unix seconds) becomes `added_at`.
 dates as microseconds since 1601-01-01 UTC, and those are converted. Non-folder
 values in `roots`, such as sync metadata, are ignored.
 
+**Firefox `places.sqlite`.** Detected by the file's SQLite header. Firefox
+keeps the database open while it runs and writes recent changes to a
+`places.sqlite-wal` file next to it. markfind copies both files to a temporary
+directory and reads the copy, so it sees those changes and can't lock or
+damage the profile. Bookmarks are rows of `moz_bookmarks` (type 1) joined to
+`moz_places` for the URL. Folders (type 2) are followed up their `parent`
+chain to build the path:
+
+- Built-in folders are identified by their fixed `guid` and shown with
+  Firefox's display names: *Bookmarks Menu*, *Bookmarks Toolbar*, *Other
+  Bookmarks* and *Mobile Bookmarks*.
+- The hidden *Tags* folder (`tags________`) and everything under it is
+  skipped. Firefox stores each tag as a second copy of the bookmark there.
+- A missing bookmark title falls back to the page title in `moz_places`.
+- `dateAdded` is microseconds since 1970.
+
 ## Fetching
 
 `fetch_many()` runs downloads on a thread pool (`--workers`). Two mechanisms

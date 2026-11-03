@@ -19,7 +19,7 @@ python examples/offline_demo.py
 
 ## 2. Get your bookmarks
 
-markfind reads two formats.
+markfind reads three formats.
 
 **An HTML export (any browser).** This is the standard "Netscape bookmark
 file" that all major browsers produce:
@@ -43,6 +43,22 @@ always up to date, which suits a scheduled refresh:
 
 If you use several browser profiles, replace `Default` with `Profile 1`,
 `Profile 2`, and so on.
+
+**Firefox's `places.sqlite` database.** Like Chrome's `Bookmarks` file, this
+needs no export step and is always up to date:
+
+| System | Location |
+|---|---|
+| Windows | `%APPDATA%\Mozilla\Firefox\Profiles\<profile>\places.sqlite` |
+| macOS | `~/Library/Application Support/Firefox/Profiles/<profile>/places.sqlite` |
+| Linux | `~/.mozilla/firefox/<profile>/places.sqlite` (Snap: `~/snap/firefox/common/.mozilla/firefox/<profile>/`) |
+
+`<profile>` is a folder named something like `abcd1234.default-release`. To
+find yours, open `about:profiles` in Firefox and look at *Root Directory*.
+
+markfind reads a temporary copy of the database, so it's safe to import while
+Firefox is open, and recent changes are included. On Windows, if the import
+fails with a permission error, close Firefox and try again.
 
 ## 3. Import, fetch, search
 

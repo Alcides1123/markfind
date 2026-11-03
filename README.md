@@ -31,8 +31,10 @@ python -m pip install -e .
    - Firefox: Bookmarks → *Manage bookmarks* → Import and Backup → *Export Bookmarks to HTML*
    - Safari: File → Export → *Bookmarks*
 
-   Or point markfind straight at Chrome's `Bookmarks` JSON file in your
-   profile folder.
+   Or skip the export and point markfind straight at your browser's own
+   bookmarks: Chrome / Edge's `Bookmarks` file or Firefox's `places.sqlite`,
+   both in your profile folder (see
+   [Getting started](docs/getting-started.md#2-get-your-bookmarks)).
 
 2. **Import, fetch, search:**
 
@@ -53,7 +55,7 @@ python -m pip install -e .
 
 | Command | What it does |
 |---|---|
-| `markfind import FILE...` | Add bookmarks from an HTML export or Chrome `Bookmarks` file. Re-importing updates titles and folders and keeps fetched text. |
+| `markfind import FILE...` | Add bookmarks from an HTML export, Chrome / Edge `Bookmarks` file, or Firefox `places.sqlite`. Re-importing updates titles and folders and keeps fetched text. |
 | `markfind fetch [--older-than AGE] [--failed] [--all]` | Download pages not fetched yet. `--older-than 90d` also refreshes pages fetched more than 90 days ago, `--failed` retries failed ones, `--all` re-fetches everything. Tuning: `--workers N` (default 8), `--timeout S` (default 10), `--delay S` between requests to the same site (default 1). |
 | `markfind search WORDS... [-n N] [--raw]` | Search titles, URLs, folders and page text, best matches first. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
 | `markfind list [--folder PATH]` | List bookmarks, optionally one folder and its subfolders. |

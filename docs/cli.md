@@ -23,12 +23,17 @@ markfind import FILE [FILE ...]
 Adds bookmarks from one or more files. The format is detected from the file
 contents:
 
+- An SQLite database is read as Firefox's `places.sqlite`. markfind reads a
+  temporary copy, including changes Firefox hasn't saved to the main file yet,
+  and never modifies the original.
 - A file starting with `{` is read as Chrome / Edge `Bookmarks` JSON.
 - Anything else is read as a Netscape bookmark HTML export.
 
 Rules:
 
 - Only `http://` and `https://` URLs are kept.
+- From Firefox, tags are ignored (they're stored as extra copies of tagged
+  bookmarks), and a bookmark with no title uses the page title from history.
 - A bookmark is identified by its exact URL. Importing a URL that's already in
   the database **updates** its title and folder and keeps its fetched page
   text, so re-importing a fresh export is always safe.
@@ -41,6 +46,7 @@ Exit code 1 if a file can't be read.
 ```sh
 markfind import bookmarks.html
 markfind import "$LOCALAPPDATA/Google/Chrome/User Data/Default/Bookmarks"
+markfind import ~/.mozilla/firefox/abcd1234.default-release/places.sqlite
 ```
 
 ---

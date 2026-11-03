@@ -30,6 +30,7 @@ The tests never touch the network:
 | Test file | Covers |
 |---|---|
 | `test_importers.py` | Netscape HTML and Chrome JSON parsing |
+| `test_firefox.py` | Firefox `places.sqlite` import, including WAL changes |
 | `test_extract.py` | Text extraction and boilerplate removal |
 | `test_fetch.py` | Rate limiting, host interleaving, duration parsing |
 | `test_errors.py` | Failure classification and schema migrations |

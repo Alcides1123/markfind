@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `markfind import` reads Firefox's `places.sqlite` directly, so there's no
+  need to export to HTML. It reads a temporary copy, including recent changes
+  in the WAL file, and skips tags (#7).
+
 - Documentation in `docs/`: getting started, command reference, how it
   works, Python API, and development guide.
 - Examples in `examples/`: an offline demo, a sample bookmark export, a
