@@ -37,7 +37,21 @@ _MAIN_TAGS = frozenset({"main", "article"})
 
 # Elements without an end tag; they can't contain text, so never start a skip.
 _VOID = frozenset(
-    {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "source",
+        "track",
+        "wbr",
+    }
 )
 
 # Main content shorter than this is likely a teaser; use the whole page instead.
