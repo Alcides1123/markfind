@@ -24,14 +24,26 @@ def http(code, reason="Reason"):
         (http(429), "server", "HTTP 429 Reason"),
         (http(503), "server", "HTTP 503 Reason"),
         (http(418), "http", "HTTP 418 Reason"),
-        (urllib.error.URLError(socket.gaierror(11001, "getaddrinfo failed")), "dns", "host not found"),
+        (
+            urllib.error.URLError(socket.gaierror(11001, "getaddrinfo failed")),
+            "dns",
+            "host not found",
+        ),
         (socket.gaierror(-2, "Name or service not known"), "dns", "host not found"),
         (urllib.error.URLError(TimeoutError()), "timeout", "timed out"),
         (TimeoutError("read timed out"), "timeout", "timed out"),
         (urllib.error.URLError("timed out"), "timeout", "timed out"),
-        (urllib.error.URLError(ConnectionRefusedError()), "connection", "connection failed: ConnectionRefusedError"),
+        (
+            urllib.error.URLError(ConnectionRefusedError()),
+            "connection",
+            "connection failed: ConnectionRefusedError",
+        ),
         (ConnectionResetError(), "connection", "connection failed: ConnectionResetError"),
-        (UnsupportedContentError("unsupported content type: image/png"), "unsupported", "unsupported content type: image/png"),
+        (
+            UnsupportedContentError("unsupported content type: image/png"),
+            "unsupported",
+            "unsupported content type: image/png",
+        ),
         (FetchError("weird"), "other", "FetchError: weird"),
         (ValueError("unknown url type"), "other", "ValueError: unknown url type"),
     ],
@@ -73,7 +85,11 @@ def test_migrates_0_1_0_database(tmp_path):
     with Store(path) as store:
         assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         (failure,) = store.failures()
-        assert (failure.url, failure.kind, failure.error) == ("https://a.example/", "other", "URLError: boom")
+        assert (failure.url, failure.kind, failure.error) == (
+            "https://a.example/",
+            "other",
+            "URLError: boom",
+        )
 
     # Opening again is a no-op.
     with Store(path) as store:
