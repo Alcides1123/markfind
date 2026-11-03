@@ -13,7 +13,7 @@
 - [x] Retry failed fetches: `markfind fetch --failed`
 - [x] Per-host rate limiting during fetch
 - [ ] Honor `Retry-After` on HTTP 429 / 503 responses
-- [ ] Clearer error messages, plus a fix hint for SSL certificate failures
+- [x] Clearer error messages, plus a fix hint for SSL certificate failures (#1)
 - [ ] Tune `bm25` column weights with a small set of real queries
 
 ## 0.3 — More sources
@@ -25,7 +25,8 @@
 
 ## 0.4 — Maintenance tools
 
-- [ ] Dead-link report: list bookmarks that now return 404 / DNS errors
+- [x] Dead-link report: list bookmarks that now return 404 / DNS errors (#1)
+- [ ] Remove dead bookmarks from the index (`markfind broken --delete`)
 - [ ] Duplicate detection (same URL after normalization, or same page text)
 - [ ] Export search results to Markdown / HTML / JSON
 

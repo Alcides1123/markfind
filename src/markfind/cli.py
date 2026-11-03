@@ -11,11 +11,24 @@ from pathlib import Path
 
 from . import __version__
 from .extract import Page
-from .fetch import HostLimiter, fetch_many, fetch_page
+from .fetch import (
+    DEAD_KINDS,
+    ERROR_KINDS,
+    HostLimiter,
+    classify_error,
+    fetch_many,
+    fetch_page,
+)
 from .importers import load_file
 from .store import QueryError, Store, to_fts_query
 
 _DURATION_UNITS = {"h": "hours", "d": "days", "w": "weeks"}
+
+SSL_HINT = (
+    "hint: some pages failed SSL certificate checks. If this happens for most\n"
+    "HTTPS sites, Python can't find your system's certificates; see\n"
+    "https://github.com/Alcides1123/markfind#ssl-certificate-errors"
+)
 
 
 def default_db_path() -> Path:
@@ -50,6 +63,7 @@ def cmd_fetch(store: Store, args: argparse.Namespace) -> int:
         return 0
 
     ok = failed = 0
+    kinds: set[str] = set()
     results = fetch_many(
         pending,
         fetch=fetch_page,
@@ -63,12 +77,18 @@ def cmd_fetch(store: Store, args: argparse.Namespace) -> int:
             ok += 1
             status = "ok"
         else:
-            store.set_error(id_, f"{type(result).__name__}: {result}")
+            kind, message = classify_error(result)
+            store.set_error(id_, message, kind)
+            kinds.add(kind)
             failed += 1
-            status = f"failed ({result})"
+            status = f"failed, {kind}: {message}"
         if not args.quiet:
             print(f"[{done}/{len(pending)}] {status}: {url}")
     print(f"fetched {ok}, failed {failed}")
+    if failed:
+        print("run 'markfind broken --all' to see what failed")
+    if "ssl" in kinds:
+        print(SSL_HINT)
     return 0
 
 
@@ -105,8 +125,44 @@ def cmd_stats(store: Store, args: argparse.Namespace) -> int:
     s = store.stats()
     print(f"bookmarks: {s.total}")
     print(f"indexed:   {s.fetched}")
-    print(f"failed:    {s.failed}")
+    breakdown = ", ".join(f"{kind} {n}" for kind, n in s.failed_by_kind.items())
+    print(f"failed:    {s.failed}" + (f" ({breakdown})" if breakdown else ""))
     print(f"pending:   {s.total - s.fetched - s.failed}")
+    return 0
+
+
+def cmd_broken(store: Store, args: argparse.Namespace) -> int:
+    if args.kind:
+        kinds: tuple[str, ...] | None = tuple(args.kind)
+    elif args.all:
+        kinds = None
+    else:
+        kinds = DEAD_KINDS
+    failures = store.failures(kinds)
+
+    if args.urls:
+        for f in failures:
+            print(f.url)
+        return 0
+
+    if not failures:
+        what = "failed" if kinds is None else "matching"
+        print(f"no {what} bookmarks")
+        return 0
+    current = None
+    for f in failures:
+        if f.kind != current:
+            current = f.kind
+            count = sum(1 for g in failures if g.kind == current)
+            if current != failures[0].kind:
+                print()
+            print(f"{current} ({count}):")
+        print(f"  {f.title or f.url}")
+        print(f"    {f.url}")
+        details = f"{f.error}, checked {f.fetched_at[:10]}"
+        if f.folder:
+            details += f", folder: {f.folder}"
+        print(f"    {details}")
     return 0
 
 
@@ -161,6 +217,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("stats", help="show how many bookmarks are indexed")
     p.set_defaults(func=cmd_stats)
+
+    p = sub.add_parser(
+        "broken",
+        help="list bookmarks whose pages could not be fetched",
+        description=(
+            "By default, lists bookmarks that are most likely dead for good: "
+            f"{' and '.join(DEAD_KINDS)} errors (HTTP 404/410, unknown host)."
+        ),
+    )
+    p.add_argument("--all", action="store_true", help="list every failed bookmark")
+    p.add_argument(
+        "--kind",
+        action="append",
+        choices=ERROR_KINDS,
+        help="only this kind of failure; repeat for several",
+    )
+    p.add_argument("--urls", action="store_true", help="print only URLs, one per line")
+    p.set_defaults(func=cmd_broken)
 
     return parser
 

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import socket
+import ssl
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator
@@ -23,6 +26,62 @@ class FetchError(Exception):
     pass
 
 
+class UnsupportedContentError(FetchError):
+    pass
+
+
+# Error kinds that almost certainly mean the bookmark is dead for good.
+DEAD_KINDS = ("gone", "dns")
+
+ERROR_KINDS = (
+    "gone",
+    "dns",
+    "blocked",
+    "server",
+    "http",
+    "timeout",
+    "connection",
+    "ssl",
+    "unsupported",
+    "other",
+)
+
+
+def classify_error(exc: BaseException) -> tuple[str, str]:
+    """Return (kind, readable message) for a fetch failure; kinds are ERROR_KINDS."""
+    if isinstance(exc, urllib.error.HTTPError):
+        message = f"HTTP {exc.code} {exc.reason}".strip()
+        if exc.code in (404, 410):
+            return "gone", message
+        if exc.code in (401, 403):
+            return "blocked", message
+        if exc.code == 429 or exc.code >= 500:
+            return "server", message
+        return "http", message
+
+    # urlopen wraps most low-level errors in URLError(reason=<original error>).
+    cause: object = exc
+    if isinstance(exc, urllib.error.URLError):
+        cause = exc.reason
+
+    if isinstance(cause, UnsupportedContentError):
+        return "unsupported", str(cause)
+    if isinstance(cause, socket.gaierror):
+        return "dns", "host not found"
+    if isinstance(cause, ssl.SSLCertVerificationError):
+        detail = getattr(cause, "verify_message", None) or cause
+        return "ssl", f"certificate verification failed: {detail}"
+    if isinstance(cause, ssl.SSLError):
+        return "ssl", f"SSL error: {getattr(cause, 'reason', None) or cause}"
+    if isinstance(cause, (TimeoutError, socket.timeout)):
+        return "timeout", "timed out"
+    if isinstance(cause, ConnectionError):
+        return "connection", f"connection failed: {type(cause).__name__}"
+    if isinstance(cause, str) and "timed out" in cause:
+        return "timeout", "timed out"
+    return "other", f"{type(exc).__name__}: {exc}"
+
+
 def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> Page:
     request = urllib.request.Request(
         url,
@@ -34,7 +93,7 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
     with urllib.request.urlopen(request, timeout=timeout) as response:
         content_type = response.headers.get_content_type()
         if content_type not in (*_HTML_TYPES, "text/plain"):
-            raise FetchError(f"unsupported content type: {content_type}")
+            raise UnsupportedContentError(f"unsupported content type: {content_type}")
         # Very large pages are truncated rather than skipped.
         raw = response.read(max_bytes)
         charset = response.headers.get_content_charset() or "utf-8"
