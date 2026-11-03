@@ -86,7 +86,9 @@ class Store:
         added = updated = 0
         with self.db:
             for bm in bookmarks:
-                row = self.db.execute("SELECT id FROM bookmarks WHERE url = ?", (bm.url,)).fetchone()
+                row = self.db.execute(
+                    "SELECT id FROM bookmarks WHERE url = ?", (bm.url,)
+                ).fetchone()
                 if row:
                     id_ = row[0]
                     self.db.execute(
@@ -97,7 +99,12 @@ class Store:
                 else:
                     cursor = self.db.execute(
                         "INSERT INTO bookmarks (url, title, folder, added_at) VALUES (?, ?, ?, ?)",
-                        (bm.url, bm.title, bm.folder, bm.added_at.isoformat() if bm.added_at else None),
+                        (
+                            bm.url,
+                            bm.title,
+                            bm.folder,
+                            bm.added_at.isoformat() if bm.added_at else None,
+                        ),
                     )
                     id_ = cursor.lastrowid
                     added += 1
@@ -106,7 +113,9 @@ class Store:
 
     def _reindex(self, id_: int, body: str | None = None) -> None:
         if body is None:
-            row = self.db.execute("SELECT body FROM bookmarks_fts WHERE rowid = ?", (id_,)).fetchone()
+            row = self.db.execute(
+                "SELECT body FROM bookmarks_fts WHERE rowid = ?", (id_,)
+            ).fetchone()
             body = row[0] if row else ""
         self.db.execute("DELETE FROM bookmarks_fts WHERE rowid = ?", (id_,))
         self.db.execute(
