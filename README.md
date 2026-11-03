@@ -55,7 +55,8 @@ python -m pip install -e .
 | `markfind fetch [--older-than AGE] [--failed] [--all]` | Download pages not fetched yet. `--older-than 90d` also refreshes pages fetched more than 90 days ago, `--failed` retries failed ones, `--all` re-fetches everything. Tuning: `--workers N` (default 8), `--timeout S` (default 10), `--delay S` between requests to the same site (default 1). |
 | `markfind search WORDS... [-n N] [--raw]` | Search titles, URLs, folders and page text, best matches first. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
 | `markfind list [--folder PATH]` | List bookmarks, optionally one folder and its subfolders. |
-| `markfind stats` | How many bookmarks are indexed, failed, or pending. |
+| `markfind broken [--all] [--kind KIND] [--urls]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `other`); `--urls` prints bare URLs for scripting. |
+| `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
 
 When indexing a page, markfind skips navigation, footers, sidebars, cookie
 banners and similar boilerplate, and keeps only the `<main>` / `<article>`
@@ -67,6 +68,32 @@ so a folder full of links to one domain doesn't slow everything else down.
 
 The database lives at `~/.markfind.sqlite`. Override it with `--db PATH` or
 the `MARKFIND_DB` environment variable.
+
+## Troubleshooting
+
+### SSL certificate errors
+
+If `markfind fetch` reports `ssl: certificate verification failed` for most
+HTTPS sites, Python can't find the certificate authorities it needs to trust
+them. Common causes and fixes:
+
+- **python.org installer on macOS:** run *Install Certificates.command* from
+  the `Applications/Python 3.x` folder.
+- **Antivirus or a company proxy that inspects HTTPS:** export its root
+  certificate (or get it from your IT team) and point Python at it with the
+  `SSL_CERT_FILE` environment variable.
+- **Anywhere else:** use the Mozilla certificate bundle from `certifi`:
+
+  ```sh
+  python -m pip install certifi
+  # bash / zsh
+  export SSL_CERT_FILE="$(python -m certifi)"
+  # PowerShell
+  $env:SSL_CERT_FILE = python -m certifi
+  ```
+
+If only a few sites fail, those sites likely have expired or misconfigured
+certificates; see them with `markfind broken --kind ssl`.
 
 ## Development
 
