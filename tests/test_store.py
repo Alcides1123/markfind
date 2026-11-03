@@ -30,7 +30,7 @@ def test_search_title_and_body(store):
             Bookmark("https://b.example/", "Untitled", "Dev"),
         ]
     )
-    (b_id, _), = [p for p in store.pending() if p[1] == "https://b.example/"]
+    ((b_id, _),) = [p for p in store.pending() if p[1] == "https://b.example/"]
     store.set_page(b_id, "How to tune SQLite full-text indexes for speed")
 
     assert [r.url for r in store.search("gardening")] == ["https://a.example/"]
@@ -45,7 +45,7 @@ def test_search_title_and_body(store):
 
 def test_reimport_keeps_page_text(store):
     store.add_bookmarks([Bookmark("https://a.example/", "A")])
-    (id_, _), = store.pending()
+    ((id_, _),) = store.pending()
     store.set_page(id_, "kangaroo facts")
     store.add_bookmarks([Bookmark("https://a.example/", "A renamed")])
 

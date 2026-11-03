@@ -207,7 +207,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("query", nargs="+")
     p.add_argument("-n", "--limit", type=int, default=20)
     p.add_argument(
-        "--raw", action="store_true", help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)"
+        "--raw",
+        action="store_true",
+        help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
     )
     p.set_defaults(func=cmd_search)
 

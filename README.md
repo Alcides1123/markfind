@@ -1,5 +1,7 @@
 # markfind
 
+[![CI](https://github.com/Alcides1123/markfind/actions/workflows/ci.yml/badge.svg)](https://github.com/Alcides1123/markfind/actions/workflows/ci.yml)
+
 Full-text search over your own browser bookmarks.
 
 Browsers only search bookmark *titles*. markfind downloads the pages you've
@@ -100,7 +102,12 @@ certificates; see them with `markfind broken --kind ssl`.
 ```sh
 python -m pip install -e ".[dev]"
 python -m pytest
+ruff check . && ruff format --check .
 ```
+
+Every push runs [CI](.github/workflows/ci.yml): ruff lint and format checks,
+the test suite on Linux, Windows and macOS (Python 3.10–3.13), and a package
+build with a smoke test of the installed wheel.
 
 Code layout (`src/markfind/`):
 
