@@ -51,13 +51,16 @@ def urls(db):
 
 
 def answer(monkeypatch, text):
+    prompts = []
     monkeypatch.setattr("sys.stdin", Terminal())
-    monkeypatch.setattr("builtins.input", lambda prompt: text)
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or text)
+    return prompts
 
 
 def test_delete_after_yes(db, monkeypatch, capsys):
-    answer(monkeypatch, "y")
+    prompts = answer(monkeypatch, "y")
     assert cli.main(["--db", db, "broken", "--delete"]) == 0
+    assert prompts == ["Delete these 2 bookmarks from markfind? [y/N] "]
     out = capsys.readouterr().out
     assert "gone (1):" in out and "dns (1):" in out  # the report comes first
     assert "deleted 2 bookmarks from markfind" in out
@@ -137,3 +140,10 @@ def test_store_delete(tmp_path):
         assert store.delete(["https://a.example/", "https://a.example/", "https://x.example/"]) == 1
         assert [url for url, _, _ in store.list_bookmarks()] == ["https://b.example/"]
         assert store.delete([]) == 0
+
+
+def test_delete_one_asks_about_this_bookmark(db, monkeypatch, capsys):
+    prompts = answer(monkeypatch, "yes")
+    assert cli.main(["--db", db, "broken", "--kind", "gone", "--delete"]) == 0
+    assert prompts == ["Delete this bookmark from markfind? [y/N] "]
+    assert "deleted 1 bookmark from markfind" in capsys.readouterr().out

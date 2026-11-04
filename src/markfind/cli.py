@@ -384,10 +384,10 @@ def _confirm(question: str) -> bool | None:
 
 def _delete_failures(store: Store, failures: list[Failure], yes: bool) -> int:
     n = len(failures)
-    noun = "bookmark" if n == 1 else "bookmarks"
     print()
     if not yes:
-        answer = _confirm(f"Delete these {n} {noun} from markfind?")
+        what = "this bookmark" if n == 1 else f"these {n} bookmarks"
+        answer = _confirm(f"Delete {what} from markfind?")
         if answer is None:
             print(
                 "error: not deleting without confirmation; add --yes to delete without being asked",
