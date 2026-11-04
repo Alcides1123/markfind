@@ -84,6 +84,7 @@ thread.
 | Method | Description |
 |---|---|
 | `add_bookmarks(bookmarks, source=None) -> (added, updated)` | Insert new bookmarks. For URLs already present, update the title and folder and keep the page text. `source` (any string, usually the file path) records where they came from; `None` keeps the recorded source. |
+| `delete(urls) -> int` | Delete the bookmarks with these URLs and their indexed text. Unknown URLs are ignored. Returns how many were deleted. |
 | `prune(source, keep) -> list[(url, title)]` | Delete bookmarks whose source is `source` and whose URL isn't in `keep`. Returns what was removed. Import every source before pruning any. |
 | `pending(refetch=False, older_than=None, failed=False) -> list[(id, url)]` | Bookmarks to fetch: never-fetched ones, plus everything (`refetch`), those fetched before `now - older_than` (a `timedelta`), or failed ones (`failed`). |
 | `set_page(id, text, page_title="")` | Store fetched text and clear any error. `page_title` is used only if the bookmark has no title. |

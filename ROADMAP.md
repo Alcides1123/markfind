@@ -28,7 +28,7 @@
 ## 0.4 — Maintenance tools
 
 - [x] Dead-link report: list bookmarks that now return 404 / DNS errors (#1)
-- [ ] Remove dead bookmarks from the index (`markfind broken --delete`)
+- [x] Remove dead bookmarks from the index (`markfind broken --delete`) (#33)
 - [x] Duplicate detection (same URL after normalization, or same page text) (#17)
 - [ ] Near-duplicate pages (mostly the same text, e.g. a page with a changed footer)
 - [x] Export search results to Markdown / HTML / JSON, and a cleaned-up

@@ -24,7 +24,7 @@ from .fetch import (
 from .formats import FORMATS, to_markdown
 from .importers import load_file
 from .server import DEFAULT_HOST, DEFAULT_PORT, serve
-from .store import QueryError, Store, to_fts_query
+from .store import Failure, QueryError, Store, to_fts_query
 
 _DURATION_UNITS = {"h": "hours", "d": "days", "w": "weeks"}
 
@@ -38,6 +38,11 @@ SSL_HINT = (
 FULL_DISK_ACCESS_HINT = """hint: macOS only lets apps with Full Disk Access read Safari's bookmarks.
 Allow your terminal app in System Settings > Privacy & Security > Full Disk
 Access and try again, or export them in Safari with File > Export > Bookmarks."""
+
+
+STILL_IN_BROWSER_NOTE = """Your browser still has them: remove them there too, or the next
+'markfind sync' or import brings them back. 'markfind export --skip-dead'
+writes a clean bookmark file you can import into the browser."""
 
 
 def default_db_path() -> Path:
@@ -335,6 +340,9 @@ def cmd_broken(store: Store, args: argparse.Namespace) -> int:
         kinds = DEAD_KINDS
     failures = store.failures(kinds)
 
+    if args.delete and args.urls:
+        print("error: --delete can't be combined with --urls", file=sys.stderr)
+        return 2
     if args.urls:
         for f in failures:
             print(f.url)
@@ -358,6 +366,40 @@ def cmd_broken(store: Store, args: argparse.Namespace) -> int:
         if f.folder:
             details += f", folder: {f.folder}"
         print(f"    {details}")
+    if args.delete:
+        return _delete_failures(store, failures, args.yes)
+    return 0
+
+
+def _confirm(question: str) -> bool | None:
+    """Ask a yes/no question on the terminal; ``None`` if there is no terminal."""
+    if not sys.stdin.isatty():
+        return None
+    try:
+        answer = input(f"{question} [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
+def _delete_failures(store: Store, failures: list[Failure], yes: bool) -> int:
+    n = len(failures)
+    noun = "bookmark" if n == 1 else "bookmarks"
+    print()
+    if not yes:
+        answer = _confirm(f"Delete these {n} {noun} from markfind?")
+        if answer is None:
+            print(
+                "error: not deleting without confirmation; add --yes to delete without being asked",
+                file=sys.stderr,
+            )
+            return 1
+        if not answer:
+            print("nothing deleted")
+            return 0
+    deleted = store.delete(f.url for f in failures)
+    print(f"deleted {deleted} {'bookmark' if deleted == 1 else 'bookmarks'} from markfind")
+    print(STILL_IN_BROWSER_NOTE)
     return 0
 
 
@@ -528,6 +570,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="only this kind of failure; repeat for several",
     )
     p.add_argument("--urls", action="store_true", help="print only URLs, one per line")
+    p.add_argument(
+        "--delete",
+        action="store_true",
+        help="remove the listed bookmarks from markfind (not from your browser), after asking",
+    )
+    p.add_argument("-y", "--yes", action="store_true", help="with --delete, don't ask first")
     p.set_defaults(func=cmd_broken)
 
     p = sub.add_parser(
