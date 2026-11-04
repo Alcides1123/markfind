@@ -33,7 +33,17 @@ _BOILERPLATE_NAMES = re.compile(
     r"|newsletter|subscribe|popup|modal|skip-link|comments?)(?![a-z0-9])"
 )
 
+# Class names that describe page state rather than what an element is, e.g.
+# <body class="has-sidebar"> or <div class="is-menu-open">.
+_STATE_FLAG_PREFIXES = ("has-", "is-", "no-", "with-")
+
 _MAIN_TAGS = frozenset({"main", "article"})
+
+# Elements that wrap the whole page or its content. Class, id and role
+# heuristics never apply to them: sites put page-wide flags on <html> and
+# <body> (Wikipedia's <html> class includes "vector-feature-main-menu-..."),
+# and dropping one of these would drop the entire page.
+_STRUCTURAL = frozenset({"html", "body"}) | _MAIN_TAGS
 
 # Elements without an end tag; they can't contain text, so never start a skip.
 _VOID = frozenset(
@@ -73,12 +83,18 @@ def _is_boilerplate(tag: str, attrs: dict[str, str | None], in_main: bool) -> bo
         return True
     if tag in _TOP_LEVEL_BOILERPLATE_TAGS and not in_main:
         return True
+    if tag in _STRUCTURAL:
+        return False
     if "hidden" in attrs or attrs.get("aria-hidden") == "true":
         return True
     if (attrs.get("role") or "").lower() in _BOILERPLATE_ROLES:
         return True
-    names = f"{attrs.get('class') or ''} {attrs.get('id') or ''}".lower()
-    return bool(_BOILERPLATE_NAMES.search(names))
+    names = f"{attrs.get('class') or ''} {attrs.get('id') or ''}".lower().split()
+    return any(
+        _BOILERPLATE_NAMES.search(name)
+        for name in names
+        if not name.startswith(_STATE_FLAG_PREFIXES)
+    )
 
 
 class _TextParser(HTMLParser):
@@ -87,11 +103,16 @@ class _TextParser(HTMLParser):
         self.title: list[str] = []
         self.parts: list[str] = []
         self.main_parts: list[str] = []
+        # Text with only non-prose elements (_NOT_TEXT) removed, as a fallback
+        # if the boilerplate rules remove nearly everything.
+        self.raw_parts: list[str] = []
         self._in_title = False
         self._main_depth = 0
         # While skipping, the tag that started the skip and how deeply it is nested.
         self._skip_tag: str | None = None
         self._skip_depth = 0
+        self._raw_skip_tag: str | None = None
+        self._raw_skip_depth = 0
 
     def _space(self) -> None:
         # Keep words from adjacent elements apart, e.g. <td>a</td><td>b</td>.
@@ -99,7 +120,24 @@ class _TextParser(HTMLParser):
         if self._main_depth:
             self.main_parts.append(" ")
 
+    def _raw_start(self, tag: str) -> None:
+        if self._raw_skip_tag is not None:
+            if tag == self._raw_skip_tag:
+                self._raw_skip_depth += 1
+        elif tag in _NOT_TEXT:
+            self._raw_skip_tag = tag
+            self._raw_skip_depth = 1
+        self.raw_parts.append(" ")
+
+    def _raw_end(self, tag: str) -> None:
+        if tag == self._raw_skip_tag:
+            self._raw_skip_depth -= 1
+            if not self._raw_skip_depth:
+                self._raw_skip_tag = None
+        self.raw_parts.append(" ")
+
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._raw_start(tag)
         if self._skip_tag is not None:
             if tag == self._skip_tag:
                 self._skip_depth += 1
@@ -119,6 +157,7 @@ class _TextParser(HTMLParser):
             self._space()
 
     def handle_endtag(self, tag: str) -> None:
+        self._raw_end(tag)
         if self._skip_tag is not None:
             if tag == self._skip_tag:
                 self._skip_depth -= 1
@@ -132,10 +171,12 @@ class _TextParser(HTMLParser):
         self._space()
 
     def handle_data(self, data: str) -> None:
-        if self._skip_tag is not None:
-            return
         if self._in_title:
             self.title.append(data)
+            return
+        if self._raw_skip_tag is None:
+            self.raw_parts.append(data)
+        if self._skip_tag is not None:
             return
         self.parts.append(data)
         if self._main_depth:
@@ -151,4 +192,13 @@ def extract_text(html: str) -> Page:
     main = normalize("".join(parser.main_parts))
     if len(main.split()) >= MIN_MAIN_WORDS:
         text = main
+    else:
+        # If the boilerplate rules removed nearly everything (under 10% of
+        # the visible text), a wrapper element was probably misjudged; index
+        # all the visible text rather than an empty page. Small pages that
+        # are mostly navigation keep their filtered text.
+        words = len(text.split())
+        raw = normalize("".join(parser.raw_parts))
+        if words < MIN_MAIN_WORDS and words * 10 < len(raw.split()):
+            text = raw
     return Page(title=normalize("".join(parser.title)), text=text)

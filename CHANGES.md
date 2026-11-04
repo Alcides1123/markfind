@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix: Wikipedia articles (and other pages with page-wide flag classes on
+  `<html>` or `<body>`) were indexed with no text. Class, id and role rules
+  no longer apply to `<html>`, `<body>`, `<main>` and `<article>`; state
+  classes like `has-sidebar` are ignored; and a page is never indexed nearly
+  empty because of one misjudged wrapper. Run `markfind fetch --all` to
+  re-index affected pages (#9).
+
 - `markfind import` reads Firefox's `places.sqlite` directly, so there's no
   need to export to HTML. It reads a temporary copy, including recent changes
   in the WAL file, and skips tags (#7).

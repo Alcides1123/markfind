@@ -87,10 +87,20 @@ banners and footers, and every page would match words like "home" or
      `popup`, `modal` or `comments`. "Whole word" means `site-footer` and
      `cookie_bar` match but `additional` does not.
    - Hidden elements (`hidden`, `aria-hidden="true"`).
+
+   The class, id and role rules never apply to `<html>`, `<body>`, `<main>`
+   or `<article>`, because sites put page-wide flags on them. Wikipedia's
+   `<html>` class includes `vector-feature-main-menu-pinned-disabled`, for
+   example. State classes such as `has-sidebar` or `is-menu-open` are
+   ignored too.
 3. **Prefers the main content.** If the page has `<main>` or `<article>` with
    at least 30 words, only that text is kept. Otherwise the whole page, minus
    the boilerplate above, is used. The 30-word minimum stops a short teaser in
    `<main>` from hiding the rest of the page.
+4. **Never empties a page by mistake.** If the rules above leave under 30
+   words and remove more than 90% of the visible text, a wrapper element was
+   probably misjudged. In that case all the visible text is indexed instead,
+   still without scripts and styles.
 
 Skipping is depth-counted per tag name, so nested `<div>`s inside a skipped
 `<div class="sidebar">` are handled. Void elements such as `<input
