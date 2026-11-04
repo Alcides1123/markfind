@@ -156,6 +156,42 @@ on real queries is on the [roadmap](../ROADMAP.md).
 The snippet is FTS5's `snippet()` over the `body` column: up to 16 tokens
 around the matches.
 
+## The web interface
+
+`markfind serve` (`server.py`) is a `ThreadingHTTPServer` with three JSON
+endpoints and three static files. The files (`web/index.html`, `app.js` and
+`style.css`) ship as package data. There's no framework and no build step.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/search?q=…&raw=1&limit=N` | `{"query", "results": [{url, title, folder, snippet}]}`. `400` with `{"error"}` for an invalid raw query. |
+| `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked}]}` |
+| `GET /api/stats` | `{"total", "indexed", "failed", "pending", "failed_by_kind"}` |
+
+Design choices:
+
+- **Read-only connections.** Each request opens the database with
+  `mode=ro`. The server never writes, not even the schema check, so it can't
+  contend with a `fetch` running at the same time. `markfind serve` creates or
+  migrates the database once at startup, before serving.
+- **Page text is data, never HTML.** Snippets come from arbitrary websites.
+  The API marks matched words with the control characters `\x02` and `\x03`
+  instead of HTML tags. The page splits on those characters and builds text
+  nodes and `<mark>` elements with `textContent`, so markup in page text is
+  displayed rather than run. Only `http(s)` URLs become links.
+- **Defence in depth.** Every response sends `Content-Security-Policy:
+  default-src 'none'; script-src 'self'; …` (no inline scripts are allowed),
+  plus `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.
+  Static files are looked up in a fixed table, so paths like `/../x` can't
+  reach other files.
+- **DNS rebinding.** On a loopback address, any request whose `Host` header
+  isn't `localhost`, `127.0.0.1` or `[::1]` is refused. Otherwise a website
+  could point its own domain at `127.0.0.1` and read your results from your
+  browser.
+- **One server per port.** On Windows, Python's default `SO_REUSEADDR` lets
+  two servers bind the same port, so the server uses `SO_EXCLUSIVEADDRUSE`
+  there instead.
+
 ## Schema versions and migrations
 
 The database stores its schema version in `PRAGMA user_version`. When

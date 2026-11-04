@@ -94,7 +94,17 @@ def to_fts_query(text: str) -> str:
 
 
 class Store:
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, readonly: bool = False) -> None:
+        """Open (and create or migrate) a database.
+
+        With ``readonly``, the database must already exist at the current
+        schema version; it is opened without any writes, so readers such as
+        ``markfind serve`` never contend with a running ``markfind fetch``.
+        """
+        if readonly:
+            uri = Path(path).resolve().as_uri() + "?mode=ro"
+            self.db = sqlite3.connect(uri, uri=True)
+            return
         self.db = sqlite3.connect(str(path))
         self.db.executescript(SCHEMA)
         self._migrate()

@@ -102,7 +102,19 @@ All the words must appear somewhere in the bookmark's title, URL, folder or
 page text. Words are matched by their stem, so `index` also finds `indexes` and
 `indexing`. Results are ranked best first, and title matches count most.
 
-## 4. Keep it fresh
+## 4. Search in your browser
+
+```sh
+markfind serve --open
+```
+
+This opens a page at `http://127.0.0.1:8737/` where results appear as you
+type. Click one to open it in a new tab. A *Dead links* tab lists bookmarks
+whose pages are gone. The page runs only on your computer and never changes
+your bookmarks. Press `Ctrl+C` in the terminal to stop it. See
+[`serve`](cli.md#serve) for options.
+
+## 5. Keep it fresh
 
 ```sh
 markfind import ~/Downloads/bookmarks.html   # picks up new bookmarks, renames, moves
