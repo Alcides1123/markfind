@@ -89,6 +89,12 @@ keep it polite to websites:
 Results are written to the database from the main thread as they arrive, so a
 fetch can be interrupted at any point without losing finished work.
 
+Servers don't always say what they're sending. `sniff_content_type()`
+checks the start of the body when the `Content-Type` header is missing (Python
+would otherwise report `text/plain`) or says `text/plain`: a body that opens
+with `<!DOCTYPE html`, `<html`, `<head` or `<body` is HTML. Without a header,
+NUL bytes or a `%PDF` signature mean binary data, which isn't indexed.
+
 Failures go through `classify_error()`, which maps the exception (HTTP status,
 DNS failure, timeout, certificate error, and so on) to one of the
 [failure kinds](cli.md#fetch) plus a short readable message.
