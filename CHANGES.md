@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `fetch` and `sync` retry pages answered with HTTP 429 ("too many requests")
+  or 503, after the wait the site's `Retry-After` header asks for, holding
+  back every request to that site meanwhile. `--max-retry-wait S` (default 60)
+  caps the wait; a site asking for longer fails at once, with the wait in the
+  message (#26).
+- Bot-protection challenge pages (Cloudflare, Vercel) are now `blocked`
+  instead of `server` ("try later"), since an automated client can't pass
+  them (#26).
+
 - Pages that download fine but have no text (apps drawn by JavaScript, pages
   behind a login) are now an `empty` failure instead of counting as indexed,
   so `stats` shows what's really searchable. See them with

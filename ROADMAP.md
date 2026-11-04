@@ -12,7 +12,7 @@
 - [x] Re-fetch pages older than N days: `markfind fetch --older-than 90d`
 - [x] Retry failed fetches: `markfind fetch --failed`
 - [x] Per-host rate limiting during fetch
-- [ ] Honor `Retry-After` on HTTP 429 / 503 responses
+- [x] Honor `Retry-After` on HTTP 429 / 503 responses (#26)
 - [x] Clearer error messages, plus a fix hint for SSL certificate failures (#1)
 - [ ] Tune `bm25` column weights with a small set of real queries
 

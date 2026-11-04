@@ -12,7 +12,9 @@ import urllib.request
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from itertools import chain, zip_longest
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from itertools import chain, count, zip_longest
 from urllib.parse import urlsplit
 
 from . import __version__
@@ -39,6 +41,14 @@ class EmptyPageError(FetchError):
 
 EMPTY_MESSAGE = "no text found; the page may need JavaScript or a login"
 
+# Retrying HTTP 429 / 503 responses.
+RETRIES = 2
+MAX_RETRY_WAIT = 60.0  # longer waits are not worth holding up a fetch for
+DEFAULT_RETRY_WAIT = 5.0  # when the server doesn't say
+# Headers that mark a bot-protection challenge page: an automated client
+# never gets past one, so it isn't retried.
+_CHALLENGE_HEADERS = ("cf-mitigated", "x-vercel-mitigated")
+
 # Error kinds that almost certainly mean the bookmark is dead for good.
 DEAD_KINDS = ("gone", "dns")
 
@@ -63,9 +73,14 @@ def classify_error(exc: BaseException) -> tuple[str, str]:
         message = f"HTTP {exc.code} {exc.reason}".strip()
         if exc.code in (404, 410):
             return "gone", message
+        if is_bot_challenge(exc):
+            return "blocked", f"{message}: bot-protection challenge"
         if exc.code in (401, 403):
             return "blocked", message
         if exc.code == 429 or exc.code >= 500:
+            asked = _retry_after_header(exc)
+            if asked is not None and asked > 0:
+                message += f"; the site asks to wait {asked:.0f} s"
             return "server", message
         return "http", message
 
@@ -92,6 +107,46 @@ def classify_error(exc: BaseException) -> tuple[str, str]:
     if isinstance(cause, str) and "timed out" in cause:
         return "timeout", "timed out"
     return "other", f"{type(exc).__name__}: {exc}"
+
+
+def is_bot_challenge(exc: urllib.error.HTTPError) -> bool:
+    """Whether an error response is a bot-protection challenge (Cloudflare, Vercel)."""
+    headers = exc.headers
+    if headers is None:
+        return False
+    return any(
+        (headers.get(name) or "").strip().lower() == "challenge" for name in _CHALLENGE_HEADERS
+    )
+
+
+def _retry_after_header(exc: urllib.error.HTTPError) -> float | None:
+    """Seconds from the Retry-After header (a number or an HTTP date), or None."""
+    value = (exc.headers.get("Retry-After") or "").strip() if exc.headers is not None else ""
+    if not value:
+        return None
+    if value.isdigit():
+        return float(value)
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+
+
+def retry_wait(exc: BaseException) -> float | None:
+    """Seconds to wait before retrying this failure, or None if retrying won't help.
+
+    Only HTTP 429 (too many requests) and 503 (unavailable) are retried, and
+    never a bot-protection challenge.
+    """
+    if not isinstance(exc, urllib.error.HTTPError) or exc.code not in (429, 503):
+        return None
+    if is_bot_challenge(exc):
+        return None
+    asked = _retry_after_header(exc)
+    return DEFAULT_RETRY_WAIT if asked is None else asked
 
 
 def sniff_content_type(declared: str | None, body: bytes) -> str | None:
@@ -168,15 +223,24 @@ class HostLimiter:
         self._guard = threading.Lock()
         self._locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
         self._last: dict[str, float] = {}
+        self._not_before: dict[str, float] = {}
+
+    def defer(self, host: str, seconds: float) -> None:
+        """Hold back every request to ``host`` for ``seconds`` from now."""
+        with self._guard:
+            until = self._clock() + seconds
+            self._not_before[host] = max(self._not_before.get(host, until), until)
 
     def run(self, host: str, func: Callable[[], Page]) -> Page:
         with self._guard:
             lock = self._locks[host]
         with lock:
+            start = self._not_before.get(host, 0.0)
             if host in self._last:
-                wait = self._last[host] + self.delay - self._clock()
-                if wait > 0:
-                    self._sleep(wait)
+                start = max(start, self._last[host] + self.delay)
+            wait = start - self._clock()
+            if wait > 0:
+                self._sleep(wait)
             try:
                 return func()
             finally:
@@ -202,16 +266,31 @@ def fetch_many(
     workers: int = 8,
     timeout: float = 10.0,
     limiter: HostLimiter | None = None,
+    max_retry_wait: float = MAX_RETRY_WAIT,
+    retries: int = RETRIES,
 ) -> Iterator[tuple[int, str, Page | Exception]]:
     """Fetch (id, url) pairs concurrently, yielding results as they finish.
 
     Failures are yielded as exceptions instead of being raised, so one bad
-    link does not stop the rest.
+    link does not stop the rest. A page answered with HTTP 429 or 503 is
+    retried up to ``retries`` times, after the wait the server asks for, unless
+    that's longer than ``max_retry_wait`` seconds; meanwhile the whole host
+    waits.
     """
     limiter = limiter or HostLimiter()
 
     def task(url: str) -> Page:
-        return limiter.run(host_of(url), lambda: fetch(url, timeout=timeout))
+        host = host_of(url)
+        for attempt in count():
+            try:
+                return limiter.run(host, lambda: fetch(url, timeout=timeout))
+            except urllib.error.HTTPError as exc:
+                wait = retry_wait(exc)
+                give_up = wait is None or attempt >= retries or max_retry_wait <= 0
+                if give_up or wait > max_retry_wait:
+                    raise
+                limiter.defer(host, wait)
+        raise AssertionError("unreachable")  # count() never ends
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         futures = {pool.submit(task, url): (id_, url) for id_, url in interleave_hosts(items)}

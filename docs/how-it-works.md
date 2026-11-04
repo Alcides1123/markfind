@@ -82,6 +82,15 @@ keep it polite to websites:
   is in flight. It also enforces a minimum gap of `--delay` seconds between
   requests to that host. A failed request counts too, so a host that's down
   isn't retried immediately.
+- **Retries.** A 429 ("too many requests") or 503 ("unavailable") response is
+  retried up to twice, after the wait in its `Retry-After` header (seconds or
+  an HTTP date; 5 seconds if absent). `HostLimiter.defer()` holds back
+  *every* request to that host meanwhile, since the server asked the client
+  as a whole to slow down. A wait longer than `--max-retry-wait` isn't worth
+  stalling a fetch for, so that page fails at once. Responses with
+  `cf-mitigated: challenge` or `x-vercel-mitigated: challenge` are
+  bot-protection challenge pages, not rate limits: they're never retried and
+  count as `blocked`.
 - **`interleave_hosts()`** reorders the work round-robin by host before it's
   queued. Without this, 200 bookmarks on one site would occupy every worker
   waiting on that site's limiter while other sites sat idle.
