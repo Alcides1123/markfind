@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 CHROMIUM_BROWSERS = ("Chrome", "Edge", "Brave", "Vivaldi", "Chromium")
-BROWSERS = (*CHROMIUM_BROWSERS, "Firefox")
+BROWSERS = (*CHROMIUM_BROWSERS, "Firefox", "Safari")
 
 # Per platform: browser -> "User Data" directory, relative to a base folder.
 _CHROMIUM_DIRS = {
@@ -138,12 +138,23 @@ def _firefox_sources(root: Path) -> list[Source]:
     return sources
 
 
+def _safari_sources(home: Path) -> list[Source]:
+    path = home / "Library" / "Safari" / "Bookmarks.plist"
+    try:
+        found = path.is_file()
+    except PermissionError:
+        # macOS hides ~/Library/Safari from apps without Full Disk Access. The
+        # file is there; importing it explains how to allow access.
+        found = True
+    return [Source("Safari", "Default", path)] if found else []
+
+
 def find_sources(
     platform: str | None = None,
     env: Mapping[str, str] | None = None,
     home: Path | None = None,
 ) -> list[Source]:
-    """Bookmark files of every browser profile found, Chromium browsers first.
+    """Bookmark files of every browser profile found: Chromium, Firefox, Safari.
 
     The arguments default to the current computer; tests pass fake ones.
     """
@@ -157,6 +168,8 @@ def find_sources(
         sources += _chromium_sources(browser, base / relative)
     for root in _firefox_roots(platform, env, home):
         sources += _firefox_sources(root)
+    if platform == "darwin":
+        sources += _safari_sources(home)
 
     # The same profile can be reachable twice, e.g. through a symlinked folder.
     seen: set[Path] = set()

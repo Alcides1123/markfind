@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `markfind import` reads Safari's `~/Library/Safari/Bookmarks.plist`
+  directly (binary or XML property list), keeping *Favorites*, *Bookmarks
+  Menu* and *Reading List* as folders. `markfind sync` finds it on macOS
+  (`--browser safari`). If macOS blocks access, markfind explains how to
+  grant the terminal Full Disk Access (#31).
+
 - `markfind serve`: a folder menu next to the search box limits results to one
   folder and its subfolders, with a bookmark count for each folder. Arrow keys
   move through the results, `Enter` opens one and `Shift+Enter` shows similar

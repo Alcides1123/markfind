@@ -1,16 +1,18 @@
 """Read bookmarks exported from browsers.
 
-Three formats are supported:
+Four formats are supported:
 
 * The Netscape bookmark HTML file that every major browser can export
   (Chrome, Edge, Firefox, Safari: "Export bookmarks to HTML").
 * Chrome / Edge's internal ``Bookmarks`` JSON file from the profile folder.
 * Firefox's internal ``places.sqlite`` database from the profile folder.
+* Safari's internal ``Bookmarks.plist`` property list.
 """
 
 from __future__ import annotations
 
 import json
+import plistlib
 import shutil
 import sqlite3
 import tempfile
@@ -19,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
+from xml.parsers.expat import ExpatError
 
 _CHROME_EPOCH = datetime(1601, 1, 1, tzinfo=timezone.utc)
 _UNIX_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
@@ -36,6 +39,12 @@ _FIREFOX_ROOT_GUID = "root________"
 # Tags are stored as bookmarks inside this hidden folder; they duplicate the
 # real bookmarks, so the whole subtree is skipped.
 _FIREFOX_TAGS_GUID = "tags________"
+# Safari's built-in folders: internal title -> the name Safari shows.
+_SAFARI_FOLDERS = {
+    "BookmarksBar": "Favorites",
+    "BookmarksMenu": "Bookmarks Menu",
+    "com.apple.ReadingList": "Reading List",
+}
 _FIREFOX_TYPE_BOOKMARK = 1
 _FIREFOX_TYPE_FOLDER = 2
 
@@ -270,13 +279,67 @@ def parse_firefox_places(path: str | Path) -> list[Bookmark]:
             db.close()
 
 
+def _is_plist(data: bytes) -> bool:
+    return data.startswith(b"bplist00") or b"<plist" in data[:1024]
+
+
+def parse_safari_plist(data: bytes) -> list[Bookmark]:
+    """Parse Safari's ``Bookmarks.plist`` (binary or XML property list)."""
+    try:
+        root = plistlib.loads(data)
+    except (plistlib.InvalidFileException, ExpatError, ValueError, OverflowError) as exc:
+        raise ValueError(f"not a readable Safari bookmarks file: {exc}") from exc
+    if not isinstance(root, dict):
+        raise ValueError("not a readable Safari bookmarks file: unexpected contents")
+
+    bookmarks: list[Bookmark] = []
+
+    def walk(node: dict, path: list[str]) -> None:
+        kind = node.get("WebBookmarkType")
+        if kind == "WebBookmarkTypeLeaf":
+            url = str(node.get("URLString") or "").strip()
+            if not _is_web_url(url):
+                return
+            uri = node.get("URIDictionary")
+            title = uri.get("title") if isinstance(uri, dict) else None
+            reading = node.get("ReadingList")
+            added = reading.get("DateAdded") if isinstance(reading, dict) else None
+            if isinstance(added, datetime) and added.tzinfo is None:
+                added = added.replace(tzinfo=timezone.utc)  # plistlib dates are UTC
+            bookmarks.append(
+                Bookmark(
+                    url=url,
+                    title=_clean(str(title or "")),
+                    folder="/".join(path),
+                    added_at=added if isinstance(added, datetime) else None,
+                )
+            )
+        elif kind == "WebBookmarkTypeList":
+            children = node.get("Children")
+            if not isinstance(children, list):
+                return
+            # The root list has no title; built-in folders get Safari's display names.
+            title = _clean(str(node.get("Title") or ""))
+            name = _SAFARI_FOLDERS.get(title, title)
+            for child in children:
+                if isinstance(child, dict):
+                    walk(child, [*path, name] if name else path)
+        # WebBookmarkTypeProxy (the History shortcut) and anything else: skipped.
+
+    walk(root, [])
+    return bookmarks
+
+
 def load_file(path: str | Path) -> list[Bookmark]:
     """Parse a bookmark export, detecting the format from its contents."""
     with open(path, "rb") as f:
         header = f.read(len(_SQLITE_HEADER))
     if header == _SQLITE_HEADER:
         return parse_firefox_places(path)
-    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    data = Path(path).read_bytes()
+    if _is_plist(data):
+        return parse_safari_plist(data)
+    text = data.decode("utf-8", errors="replace")
     if text.lstrip().startswith("{"):
         return parse_chrome_json(text)
     return parse_netscape_html(text)
