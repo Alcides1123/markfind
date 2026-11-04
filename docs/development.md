@@ -35,6 +35,7 @@ The tests never touch the network:
 | `test_fetch.py` | Rate limiting, host interleaving, duration parsing |
 | `test_errors.py` | Failure classification and schema migrations |
 | `test_store.py` | Storage, indexing and search |
+| `test_similar.py` | `markfind similar`: keyword choice, ranking, stemming, read-only use |
 | `test_cli.py` | The `markfind` command end to end |
 | `test_examples.py` | The scripts in `examples/` |
 

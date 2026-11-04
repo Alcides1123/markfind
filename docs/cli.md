@@ -158,6 +158,61 @@ Exit codes:
 
 ---
 
+## similar
+
+```text
+markfind similar [-n N] URL
+```
+
+"More like this": lists the bookmarks most like the one with this URL, and
+the words the match was based on. Use it to rediscover related pages you saved
+long ago, in other folders or under unhelpful titles.
+
+```text
+$ markfind similar https://git-scm.com/book/en/v2/Git-Branching-Rebasing -n 2
+Similar to: Git rebasing
+based on: git, rebase, branch, merge, commits, history, figure, master, server, project, replay, topic, patch, pushed, pull
+
+1. Git branching
+   https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
+   ...couple of [commits] already on the [master] [branch]. [Figure] 18. A simple [commit] [history] You’ve...
+2. Git remotes
+   https://git-scm.com/book/en/v2/Git-Basics-Working-with-Remotes
+   ...[branch] configured for '[git] [pull]': [master] [merges] with remote [master] Local ref configured for '[git] [push]...
+```
+
+| Option | Meaning |
+|---|---|
+| `-n N`, `--limit N` | Show at most `N` results (default 10). |
+
+`URL` must match a bookmark exactly; copy it from `search` or `list` output.
+
+How it chooses:
+
+1. It takes the words of the bookmark's page text and title. Title words
+   count three times, and common English words like "the" are dropped. A
+   bookmark that hasn't been fetched yet uses its title alone.
+2. It groups words by stem, as search does, so `index`, `indexes` and
+   `indexing` count as one.
+3. It scores each word by **TF-IDF**: how often the page uses it, times how
+   rare it is across all your bookmarks. Words that no other bookmark uses
+   can't match anything, and words every bookmark uses can't tell them apart,
+   so both are skipped.
+4. It searches for the 15 best words with `OR` and ranks results with BM25,
+   like [`search`](#output-and-ranking). Bookmarks that share more of the
+   distinctive words, and rarer ones, rank higher.
+
+Results get better as your collection grows, because "rare" means more with
+more bookmarks to compare.
+
+Exit codes:
+
+- 0: results found
+- 1: no similar bookmarks
+- 2: the URL isn't in markfind
+
+---
+
 ## list
 
 ```text

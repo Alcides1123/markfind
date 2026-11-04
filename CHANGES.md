@@ -33,6 +33,10 @@
   when opened. Failures recorded by 0.1.0 get the kind `other`; run
   `markfind fetch --failed` to classify them.
 
+- New `markfind similar URL`: "more like this". Lists the bookmarks most like
+  a given one and the distinctive words they share, chosen by TF-IDF over the
+  index and stemmed like search. `Store.similar()` in the Python API (#15).
+
 ## 0.1.0
 
 First release.

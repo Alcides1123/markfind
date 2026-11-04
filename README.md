@@ -58,6 +58,7 @@ python -m pip install -e .
 | `markfind import FILE...` | Add bookmarks from an HTML export, Chrome / Edge `Bookmarks` file, or Firefox `places.sqlite`. Re-importing updates titles and folders and keeps fetched text. |
 | `markfind fetch [--older-than AGE] [--failed] [--all]` | Download pages not fetched yet. `--older-than 90d` also refreshes pages fetched more than 90 days ago, `--failed` retries failed ones, `--all` re-fetches everything. Tuning: `--workers N` (default 8), `--timeout S` (default 10), `--delay S` between requests to the same site (default 1). |
 | `markfind search WORDS... [-n N] [--raw]` | Search titles, URLs, folders and page text, best matches first. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
+| `markfind similar URL [-n N]` | "More like this": bookmarks most like this one, and the distinctive words they share. |
 | `markfind list [--folder PATH]` | List bookmarks, optionally one folder and its subfolders. |
 | `markfind broken [--all] [--kind KIND] [--urls]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `other`); `--urls` prints bare URLs for scripting. |
 | `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
