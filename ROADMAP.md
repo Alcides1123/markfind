@@ -43,7 +43,7 @@
 ## Later
 
 - [x] Small local web UI (`markfind serve`) with search-as-you-type (#11)
-- [ ] Web UI: filter by folder, keyboard navigation through results
+- [x] Web UI: filter by folder, keyboard navigation through results
 - [ ] User tags and notes, searchable alongside page text
 - [ ] Save an archived copy of each page so results survive link rot
 - [x] CI: GitHub Actions with lint, tests on Linux and Windows, and a package build (#3)

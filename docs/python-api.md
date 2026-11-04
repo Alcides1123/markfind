@@ -87,10 +87,11 @@ thread.
 | `pending(refetch=False, older_than=None, failed=False) -> list[(id, url)]` | Bookmarks to fetch: never-fetched ones, plus everything (`refetch`), those fetched before `now - older_than` (a `timedelta`), or failed ones (`failed`). |
 | `set_page(id, text, page_title="")` | Store fetched text and clear any error. `page_title` is used only if the bookmark has no title. |
 | `set_error(id, message, kind="other")` | Record a failed fetch. |
-| `search(query, limit=20, mark=("[", "]"), exclude=None) -> list[SearchResult]` | Run an FTS5 query. `mark` wraps matched words in the snippet; `exclude` leaves out one bookmark id. Raises `QueryError` for invalid syntax. |
+| `search(query, limit=20, mark=("[", "]"), exclude=None, folder=None) -> list[SearchResult]` | Run an FTS5 query. `mark` wraps matched words in the snippet; `exclude` leaves out one bookmark id; `folder` keeps one folder and its subfolders. Raises `QueryError` for invalid syntax. |
 | `similar(url, limit=10, mark=("[", "]")) -> Similar` | Bookmarks most like this one (see [`markfind similar`](cli.md#similar)). Raises `KeyError` if the URL isn't in the database. Works on read-only connections. |
 | `failures(kinds=None) -> list[Failure]` | Bookmarks whose last fetch failed, optionally only the given kinds. |
 | `list_bookmarks(folder=None) -> list[(url, title, folder)]` | All bookmarks, or one folder and its subfolders. |
+| `folders() -> list[(path, count)]` | Every folder, parents included, in tree order. A count includes subfolders. |
 | `records(folder=None) -> list[Record]` | Like `list_bookmarks`, with dates and fetch status, for exporting. |
 | `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`. |
 | `pages() -> list[(url, title, folder, text)]` | Every bookmark with its indexed page text (`''` if not fetched). |

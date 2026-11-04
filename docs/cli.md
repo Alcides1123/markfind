@@ -203,7 +203,7 @@ Every failure is recorded with a **kind**. [`broken`](#broken) and
 ## search
 
 ```text
-markfind search [-n N] [--raw] WORD [WORD ...]
+markfind search [-n N] [--raw] [--folder PATH] WORD [WORD ...]
 ```
 
 Searches bookmark titles, URLs, folder paths and page text, and prints the
@@ -213,6 +213,7 @@ best matches first.
 |---|---|
 | `-n N`, `--limit N` | Show at most `N` results (default 20). |
 | `--raw` | Pass the query to SQLite FTS5 unchanged (see below). |
+| `--folder PATH` | Only bookmarks in this folder and its subfolders, e.g. `--folder "Bookmarks bar/Dev"`. `Dev` doesn't include a sibling folder named `Dev2`. |
 
 ### Plain queries (default)
 
@@ -503,8 +504,11 @@ The page has two views:
 
 - **Search:** results update as you type. Matching words are highlighted, and
   each result shows its folder and URL and opens in a new tab. Tick *Advanced
-  syntax* to use the [`--raw` query syntax](#raw-queries---raw). The query is
-  kept in the page address, so you can bookmark or share a search.
+  syntax* to use the [`--raw` query syntax](#raw-queries---raw). The folder
+  menu next to the search box limits results to one folder and its
+  subfolders; it lists every folder with how many bookmarks it holds. The
+  query and folder are kept in the page address, so you can bookmark or share
+  a search.
 - **Similar:** each result has a *Similar* button that shows the bookmarks
   most like it, the same as [`markfind similar`](#similar). The words the
   match was based on are listed at the top. The results have *Similar*
@@ -514,8 +518,15 @@ The page has two views:
 - **Dead links:** the [`broken`](#broken) report grouped by kind, with a
   switch to show every failure.
 
-Keyboard: `/` jumps to the search box and `Esc` clears it (or first leaves
-the *Similar* view).
+Keyboard:
+
+| Key | Does |
+|---|---|
+| `/` | Jump to the search box. |
+| `↓` / `↑` | Move through the results. The search box keeps focus, so you can go on typing. |
+| `Enter` | Open the highlighted result in a new tab. |
+| `Shift+Enter` | Show bookmarks similar to the highlighted result. |
+| `Esc` | Leave the *Similar* view, or else clear the search. |
 
 The interface is **read-only**. It never changes your bookmarks, so it's safe
 to keep it open while `markfind import` or `markfind fetch` runs; new results

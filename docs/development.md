@@ -39,6 +39,7 @@ The tests never touch the network:
 | `test_duplicates.py` | URL normalization (what must and must not match), text grouping, `markfind duplicates` |
 | `test_errors.py` | Failure classification and schema migrations |
 | `test_store.py` | Storage, indexing and search |
+| `test_folders.py` | The folder tree, searching one folder (including names with `%` and `_`), `search --folder` |
 | `test_similar.py` | `markfind similar`: keyword choice, ranking, stemming, read-only use |
 | `test_cli.py` | The `markfind` command end to end |
 | `test_sync.py` | Browser detection with fake home folders, pruning, `sync` and `import --prune` |

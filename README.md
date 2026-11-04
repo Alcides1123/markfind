@@ -61,14 +61,14 @@ python -m pip install -e .
 | `markfind import FILE...` | Add bookmarks from an HTML export, Chrome / Edge `Bookmarks` file, or Firefox `places.sqlite`. Re-importing updates titles and folders and keeps fetched text; `--prune` removes bookmarks no longer in the file. |
 | `markfind sync [--prune] [--browser NAME] [--list]` | Find every installed browser's bookmarks (all profiles), import them and fetch new pages. `--prune` removes bookmarks deleted in the browser; `--list` only shows what was found; `--no-fetch` skips fetching. |
 | `markfind fetch [--older-than AGE] [--failed] [--all]` | Download pages not fetched yet. `--older-than 90d` also refreshes pages fetched more than 90 days ago, `--failed` retries failed ones, `--all` re-fetches everything. Tuning: `--workers N` (default 8), `--timeout S` (default 10), `--delay S` between requests to the same site (default 1), `--max-retry-wait S` for sites that say "too many requests" (default 60). |
-| `markfind search WORDS... [-n N] [--raw]` | Search titles, URLs, folders and page text, best matches first. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
+| `markfind search WORDS... [-n N] [--raw] [--folder PATH]` | Search titles, URLs, folders and page text, best matches first. `--folder` keeps one folder and its subfolders. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
 | `markfind similar URL [-n N]` | "More like this": bookmarks most like this one, and the distinctive words they share. |
 | `markfind list [--folder PATH]` | List bookmarks, optionally one folder and its subfolders. |
 | `markfind duplicates [--by url\|text] [--urls]` | Bookmarks saved more than once: the same URL apart from `http`/`https`, `www.`, tracking parameters and the like, or the same page text. The cleanest URL is starred; `--urls` prints the other copies. |
 | `markfind broken [--all] [--kind KIND] [--urls]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `empty`, `other`); `--urls` prints bare URLs for scripting. |
 | `markfind export [-f FORMAT] [-o FILE] [--skip-dead]` | Write bookmarks as an HTML file any browser can import, or as Markdown, JSON or CSV. `--skip-dead` leaves out dead links; `--folder` and `--query` pick which bookmarks. |
 | `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
-| `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, a *Similar* button on each result, and a dead-links view. Local and read-only. |
+| `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, a folder filter, arrow-key navigation, a *Similar* button on each result, and a dead-links view. Local and read-only. |
 
 When indexing a page, markfind skips navigation, footers, sidebars, cookie
 banners and similar boilerplate, and keeps only the `<main>` / `<article>`

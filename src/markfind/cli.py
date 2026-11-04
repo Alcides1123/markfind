@@ -200,7 +200,7 @@ def cmd_search(store: Store, args: argparse.Namespace) -> int:
     text = " ".join(args.query)
     query = text if args.raw else to_fts_query(text)
     try:
-        results = store.search(query, limit=args.limit, mark=_mark())
+        results = store.search(query, limit=args.limit, mark=_mark(), folder=args.folder)
     except QueryError as exc:
         print(f"error: invalid query: {exc}", file=sys.stderr)
         return 2
@@ -435,6 +435,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
     )
+    p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
     p.set_defaults(func=cmd_search)
 
     p = sub.add_parser(
