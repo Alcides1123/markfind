@@ -3,7 +3,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from markfind.fetch import UnsupportedContentError, fetch_page, sniff_content_type
+from markfind.fetch import (
+    EMPTY_MESSAGE,
+    EmptyPageError,
+    UnsupportedContentError,
+    classify_error,
+    fetch_page,
+    sniff_content_type,
+)
 
 HTML = b"""<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <HTML><HEAD><TITLE>Redirector</TITLE>
@@ -21,6 +28,14 @@ PAGES = {
     "/plain-html": ("text/plain", HTML),
     "/plain-text": ("text/plain; charset=utf-8", b"<b> is how you write bold in HTML."),
     "/pdf": ("application/pdf", b"%PDF-1.7"),
+    # A JavaScript app: everything is drawn by script, and <noscript> isn't indexed.
+    "/js-app": (
+        "text/html",
+        b'<!doctype html><html><head><title>Chat</title><script src="app.js"></script></head>'
+        b"<body><noscript>You need to enable JavaScript to run this app.</noscript>"
+        b'<div id="app-mount"></div></body></html>',
+    ),
+    "/blank-text": ("text/plain", b"  \n\t "),
 }
 
 
@@ -70,6 +85,13 @@ def test_plain_text_stays_text(base_url):
 def test_binary_is_unsupported(base_url, path):
     with pytest.raises(UnsupportedContentError):
         fetch_page(base_url + path)
+
+
+@pytest.mark.parametrize("path", ["/js-app", "/blank-text"])
+def test_page_without_text_is_empty(base_url, path):
+    with pytest.raises(EmptyPageError) as info:
+        fetch_page(base_url + path)
+    assert classify_error(info.value) == ("empty", EMPTY_MESSAGE)
 
 
 @pytest.mark.parametrize(

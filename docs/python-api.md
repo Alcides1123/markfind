@@ -132,7 +132,7 @@ canonical_url("http://www.example.com/a/?utm_source=x#top")  # 'example.com/a'
 
 | Name | Description |
 |---|---|
-| `fetch_page(url, timeout=10.0, max_bytes=2_000_000) -> Page` | Download one page and extract its text. Raises `urllib` errors, `TimeoutError`, or `UnsupportedContentError`. |
+| `fetch_page(url, timeout=10.0, max_bytes=2_000_000) -> Page` | Download one page and extract its text. Raises `urllib` errors, `TimeoutError`, `UnsupportedContentError`, or `EmptyPageError` if the page has no text. |
 | `fetch_many(items, fetch=fetch_page, workers=8, timeout=10.0, limiter=None)` | Fetch `(id, url)` pairs concurrently. Yields `(id, url, Page \| Exception)` as each one finishes. Never raises for a single failed page. |
 | `HostLimiter(delay=1.0)` | One request at a time per host, at least `delay` seconds apart. Pass it to `fetch_many` as `limiter=`. |
 | `classify_error(exc) -> (kind, message)` | Map a fetch exception to a failure kind and a readable message. |
