@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS bookmarks (
     added_at TEXT,
     fetched_at TEXT,
     fetch_error TEXT,
-    error_kind TEXT  -- one of fetch.ERROR_KINDS when fetch_error is set
+    error_kind TEXT,  -- one of fetch.ERROR_KINDS when fetch_error is set
+    source TEXT  -- file the bookmark was last imported from, for pruning
 );
 
 -- rowid matches bookmarks.id
@@ -40,10 +41,16 @@ def _add_error_kind(db: sqlite3.Connection) -> None:
         db.execute("UPDATE bookmarks SET error_kind = 'other' WHERE fetch_error IS NOT NULL")
 
 
+def _add_source(db: sqlite3.Connection) -> None:
+    columns = {row[1] for row in db.execute("PRAGMA table_info(bookmarks)")}
+    if "source" not in columns:
+        db.execute("ALTER TABLE bookmarks ADD COLUMN source TEXT")
+
+
 # Applied in order to databases whose PRAGMA user_version is lower than their
 # position + 1; SCHEMA always describes the latest version, so every migration
 # must also be a no-op on a freshly created database.
-MIGRATIONS = [_add_error_kind]
+MIGRATIONS = [_add_error_kind, _add_source]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 # bm25() weights, in bookmarks_fts column order: title, url, body, folder.
@@ -120,8 +127,14 @@ class Store:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
-    def add_bookmarks(self, bookmarks: Iterable[Bookmark]) -> tuple[int, int]:
-        """Insert new bookmarks and refresh existing ones. Returns (added, updated)."""
+    def add_bookmarks(
+        self, bookmarks: Iterable[Bookmark], source: str | None = None
+    ) -> tuple[int, int]:
+        """Insert new bookmarks and refresh existing ones. Returns (added, updated).
+
+        ``source`` names the file they came from, which ``prune`` uses later;
+        when it's None, existing bookmarks keep their recorded source.
+        """
         added = updated = 0
         with self.db:
             for bm in bookmarks:
@@ -131,24 +144,49 @@ class Store:
                 if row:
                     id_ = row[0]
                     self.db.execute(
-                        "UPDATE bookmarks SET title = ?, folder = ? WHERE id = ?",
-                        (bm.title, bm.folder, id_),
+                        """
+                        UPDATE bookmarks SET title = ?, folder = ?, source = coalesce(?, source)
+                        WHERE id = ?
+                        """,
+                        (bm.title, bm.folder, source, id_),
                     )
                     updated += 1
                 else:
                     cursor = self.db.execute(
-                        "INSERT INTO bookmarks (url, title, folder, added_at) VALUES (?, ?, ?, ?)",
+                        """
+                        INSERT INTO bookmarks (url, title, folder, added_at, source)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
                         (
                             bm.url,
                             bm.title,
                             bm.folder,
                             bm.added_at.isoformat() if bm.added_at else None,
+                            source,
                         ),
                     )
                     id_ = cursor.lastrowid
                     added += 1
                 self._reindex(id_)
         return added, updated
+
+    def prune(self, source: str, keep: Iterable[str]) -> list[tuple[str, str]]:
+        """Delete bookmarks last imported from ``source`` whose URL isn't in ``keep``.
+
+        Returns the removed (url, title) pairs. Bookmarks from other sources,
+        or with no recorded source, are never touched.
+        """
+        keep = set(keep)
+        rows = self.db.execute(
+            "SELECT id, url, title FROM bookmarks WHERE source = ? ORDER BY folder, title, url",
+            (source,),
+        ).fetchall()
+        gone = [(id_, url, title) for id_, url, title in rows if url not in keep]
+        with self.db:
+            for id_, _, _ in gone:
+                self.db.execute("DELETE FROM bookmarks WHERE id = ?", (id_,))
+                self.db.execute("DELETE FROM bookmarks_fts WHERE rowid = ?", (id_,))
+        return [(url, title) for _, url, title in gone]
 
     def _reindex(self, id_: int, body: str | None = None) -> None:
         if body is None:

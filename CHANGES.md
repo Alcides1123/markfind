@@ -12,6 +12,17 @@
   Markdown export script, and scheduled refresh scripts for cron and
   Windows Task Scheduler. The test suite runs them.
 
+- New `markfind sync`: finds the bookmarks of every Chrome, Edge, Brave,
+  Vivaldi, Chromium and Firefox profile on Windows, macOS and Linux, imports
+  them, and fetches new pages in one step. `--list` shows what was found and
+  `--browser` picks browsers (#13).
+- `--prune` on `sync` and `import` removes bookmarks that were deleted in the
+  browser. Only bookmarks last imported from a file that was read in this run
+  are considered, so other imports are never touched (#13).
+- Bookmarks remember the file they were imported from (schema version 2,
+  upgraded automatically). `Store.prune()` and `markfind.browsers` are new in
+  the Python API.
+
 - Page text extraction now drops navigation, headers, footers, sidebars,
   forms, cookie banners, share widgets and hidden elements, detected by tag,
   ARIA role, and class / id names.
