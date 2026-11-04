@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix: pages served without a `Content-Type` header, or HTML labelled
+  `text/plain`, were indexed as raw HTML source (`<!DOCTYPE ...> <script>`...).
+  markfind now recognises HTML from the page itself, skips binary data sent
+  without a type, and drops a leading byte-order mark. Run
+  `markfind fetch --all` to re-index affected pages (#22).
+
 - Fix: Wikipedia articles (and other pages with page-wide flag classes on
   `<html>` or `<body>`) were indexed with no text. Class, id and role rules
   no longer apply to `<html>`, `<body>`, `<main>` and `<article>`; state

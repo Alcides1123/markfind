@@ -35,6 +35,7 @@ The tests never touch the network:
 | `test_server.py` | `markfind serve`: API, static files, security headers, Host checks, read-only access |
 | `test_extract.py` | Text extraction and boilerplate removal |
 | `test_fetch.py` | Rate limiting, host interleaving, duration parsing |
+| `test_fetch_page.py` | Downloading against a local server: content types, sniffing, binary data |
 | `test_duplicates.py` | URL normalization (what must and must not match), text grouping, `markfind duplicates` |
 | `test_errors.py` | Failure classification and schema migrations |
 | `test_store.py` | Storage, indexing and search |

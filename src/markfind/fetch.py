@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import socket
 import ssl
 import threading
@@ -20,6 +21,8 @@ from .extract import Page, extract_text, normalize
 USER_AGENT = f"markfind/{__version__} (+personal bookmark indexer)"
 MAX_BYTES = 2_000_000
 _HTML_TYPES = ("text/html", "application/xhtml+xml")
+# How an HTML document starts, after any BOM and whitespace.
+_HTML_START = re.compile(rb"<(?:!doctype\s+html|html|head|body)(?:[\s>/]|$)", re.IGNORECASE)
 
 
 class FetchError(Exception):
@@ -82,6 +85,22 @@ def classify_error(exc: BaseException) -> tuple[str, str]:
     return "other", f"{type(exc).__name__}: {exc}"
 
 
+def sniff_content_type(declared: str | None, body: bytes) -> str | None:
+    """The type to treat a response as, given its declared type (None if absent).
+
+    HTML sent without a Content-Type, or mislabelled text/plain, is HTML.
+    Without a Content-Type, binary data gives None; anything else is text.
+    """
+    if declared not in (None, "text/plain"):
+        return declared
+    start = body[:1024].lstrip(b"\xef\xbb\xbf \t\r\n")
+    if _HTML_START.match(start):
+        return "text/html"
+    if declared is None and (b"\x00" in body[:1024] or start.startswith(b"%PDF")):
+        return None
+    return "text/plain"
+
+
 def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> Page:
     request = urllib.request.Request(
         url,
@@ -91,17 +110,26 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        content_type = response.headers.get_content_type()
-        if content_type not in (*_HTML_TYPES, "text/plain"):
-            raise UnsupportedContentError(f"unsupported content type: {content_type}")
+        # get_content_type() reports a missing header as text/plain, so check
+        # for the header itself.
+        declared = (
+            response.headers.get_content_type() if "Content-Type" in response.headers else None
+        )
+        if declared not in (None, *_HTML_TYPES, "text/plain"):
+            raise UnsupportedContentError(f"unsupported content type: {declared}")
         # Very large pages are truncated rather than skipped.
         raw = response.read(max_bytes)
         charset = response.headers.get_content_charset() or "utf-8"
+
+    content_type = sniff_content_type(declared, raw)
+    if content_type is None:
+        raise UnsupportedContentError("unsupported content: binary data with no content type")
 
     try:
         body = raw.decode(charset, errors="replace")
     except LookupError:
         body = raw.decode("utf-8", errors="replace")
+    body = body.removeprefix("﻿")  # a UTF-8 byte-order mark isn't text
 
     if content_type == "text/plain":
         return Page(title="", text=normalize(body))

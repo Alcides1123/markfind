@@ -160,6 +160,9 @@ What gets indexed:
 - `text/plain` pages are indexed as they are.
 - Anything else, such as PDFs and images, is recorded as an `unsupported`
   failure.
+- Some servers send no content type, or label HTML as `text/plain`. markfind
+  then looks at the page itself: one that starts like an HTML document is
+  treated as HTML, binary data is `unsupported`, and anything else is text.
 - Pages over 2 MB are truncated.
 
 If a bookmark has no title, the page's `<title>` is used.
