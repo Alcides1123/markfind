@@ -32,6 +32,7 @@ The tests never touch the network:
 | `test_importers.py` | Netscape HTML and Chrome JSON parsing |
 | `test_export.py` | Every export format, escaping, the HTML round trip, `markfind export` |
 | `test_firefox.py` | Firefox `places.sqlite` import, including WAL changes |
+| `test_safari.py` | Safari `Bookmarks.plist` import (binary and XML), detection on macOS, the Full Disk Access hint |
 | `test_server.py` | `markfind serve`: API, static files, security headers, Host checks, read-only access |
 | `test_extract.py` | Text extraction and boilerplate removal |
 | `test_fetch.py` | Rate limiting, host interleaving, duration parsing |

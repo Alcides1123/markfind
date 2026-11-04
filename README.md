@@ -32,7 +32,7 @@ python -m pip install -e .
    - Safari: File → Export → *Bookmarks*
 
    Or skip the export: `markfind sync` finds the bookmarks of Chrome, Edge,
-   Brave, Vivaldi, Chromium and Firefox on its own, imports them and fetches
+   Brave, Vivaldi, Chromium, Firefox and Safari on its own, imports them and fetches
    the pages in one step. Run it again whenever you like; `--prune` also
    removes bookmarks you deleted in the browser.
 
@@ -58,7 +58,7 @@ python -m pip install -e .
 
 | Command | What it does |
 |---|---|
-| `markfind import FILE...` | Add bookmarks from an HTML export, Chrome / Edge `Bookmarks` file, or Firefox `places.sqlite`. Re-importing updates titles and folders and keeps fetched text; `--prune` removes bookmarks no longer in the file. |
+| `markfind import FILE...` | Add bookmarks from an HTML export, Chrome / Edge `Bookmarks` file, Firefox `places.sqlite`, or Safari `Bookmarks.plist`. Re-importing updates titles and folders and keeps fetched text; `--prune` removes bookmarks no longer in the file. |
 | `markfind sync [--prune] [--browser NAME] [--list]` | Find every installed browser's bookmarks (all profiles), import them and fetch new pages. `--prune` removes bookmarks deleted in the browser; `--list` only shows what was found; `--no-fetch` skips fetching. |
 | `markfind fetch [--older-than AGE] [--failed] [--all]` | Download pages not fetched yet. `--older-than 90d` also refreshes pages fetched more than 90 days ago, `--failed` retries failed ones, `--all` re-fetches everything. Tuning: `--workers N` (default 8), `--timeout S` (default 10), `--delay S` between requests to the same site (default 1), `--max-retry-wait S` for sites that say "too many requests" (default 60). |
 | `markfind search WORDS... [-n N] [--raw] [--folder PATH]` | Search titles, URLs, folders and page text, best matches first. `--folder` keeps one folder and its subfolders. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |

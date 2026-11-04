@@ -23,7 +23,7 @@
 - [x] Auto-detect browser profile locations on Windows, macOS and Linux (#13)
 - [x] `markfind sync`: import + fetch new bookmarks in one step (#13)
 - [x] Remove bookmarks that disappeared from the browser export (`--prune`) (#13)
-- [ ] Safari: read `Bookmarks.plist` directly (needs Full Disk Access on macOS)
+- [x] Safari: read `Bookmarks.plist` directly (needs Full Disk Access on macOS) (#31)
 
 ## 0.4 — Maintenance tools
 

@@ -50,6 +50,20 @@ chain to build the path:
 - A missing bookmark title falls back to the page title in `moz_places`.
 - `dateAdded` is microseconds since 1970.
 
+**Safari `Bookmarks.plist`.** Detected by the binary property list header
+(`bplist00`) or an XML `<plist>`, and read with the standard library's
+`plistlib`. The file is a tree of dictionaries:
+
+- `WebBookmarkTypeList` entries are folders, with their contents in
+  `Children`. The built-in ones get Safari's display names: `BookmarksBar` is
+  *Favorites*, `BookmarksMenu` is *Bookmarks Menu*, and
+  `com.apple.ReadingList` is *Reading List*. The root has no title.
+- `WebBookmarkTypeLeaf` entries are bookmarks: the URL is `URLString` and the
+  title is `URIDictionary.title`. Only Reading List items have a date
+  (`ReadingList.DateAdded`).
+- `WebBookmarkTypeProxy` entries, such as the *History* shortcut, aren't
+  bookmarks and are skipped.
+
 ## Syncing and pruning
 
 `markfind sync` is `import` with automatic file discovery. `find_sources()`
@@ -62,6 +76,10 @@ looks in each browser's standard data folder for the current platform:
 - **Firefox** keeps profiles in `Profiles/` (Windows, macOS) or directly in
   `~/.mozilla/firefox` (Linux). Any folder with a `places.sqlite` counts, and
   `profiles.ini` supplies the names.
+- **Safari** (macOS only) has a single `~/Library/Safari/Bookmarks.plist`.
+  Without Full Disk Access, macOS refuses even to say whether that file
+  exists, so a permission error counts as "found": the import then fails with
+  an explanation instead of Safari silently not appearing.
 
 Bad or missing metadata falls back to the folder name, and the same file
 reached twice (through a symlink, say) is only read once.

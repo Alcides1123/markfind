@@ -26,12 +26,12 @@ markfind sync --list    # shows the browser profiles it found
 markfind sync           # imports them all and fetches the pages
 ```
 
-This works for Chrome, Edge, Brave, Vivaldi, Chromium and Firefox, with every
-profile. If `sync` finds what you want, skip to [step 3](#3-import-fetch-search)
+This works for Chrome, Edge, Brave, Vivaldi, Chromium, Firefox and Safari,
+with every profile. If `sync` finds what you want, skip to [step 3](#3-import-fetch-search)
 and use `markfind sync` in place of `import` and `fetch`. See
 [`sync`](cli.md#sync) for details.
 
-Otherwise, give markfind a file. It reads three formats.
+Otherwise, give markfind a file. It reads four formats.
 
 **An HTML export (any browser).** This is the standard "Netscape bookmark
 file" that all major browsers produce:
@@ -71,6 +71,12 @@ find yours, open `about:profiles` in Firefox and look at *Root Directory*.
 markfind reads a temporary copy of the database, so it's safe to import while
 Firefox is open, and recent changes are included. On Windows, if the import
 fails with a permission error, close Firefox and try again.
+
+**Safari's `Bookmarks.plist`.** Also no export step:
+`~/Library/Safari/Bookmarks.plist`. macOS protects that folder, so first give
+your terminal app *Full Disk Access* in *System Settings → Privacy & Security
+→ Full Disk Access* (then restart the terminal). If you'd rather not, use
+Safari's HTML export above.
 
 ## 3. Import, fetch, search
 

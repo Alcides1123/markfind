@@ -35,6 +35,11 @@ SSL_HINT = (
 )
 
 
+FULL_DISK_ACCESS_HINT = """hint: macOS only lets apps with Full Disk Access read Safari's bookmarks.
+Allow your terminal app in System Settings > Privacy & Security > Full Disk
+Access and try again, or export them in Safari with File > Export > Bookmarks."""
+
+
 def default_db_path() -> Path:
     return Path(os.environ.get("MARKFIND_DB") or Path.home() / ".markfind.sqlite")
 
@@ -104,6 +109,12 @@ def _prune(store: Store, loaded: list[tuple[str, Path, list[str]]], quiet: bool)
                 print(f"  - {title or url} <{url}>")
 
 
+def _permission_hint(exc: Exception, path: Path) -> None:
+    """Explain macOS's Full Disk Access when Safari's bookmarks can't be read."""
+    if isinstance(exc, PermissionError) and "/Library/Safari/" in Path(path).as_posix():
+        print(FULL_DISK_ACCESS_HINT, file=sys.stderr)
+
+
 def cmd_import(store: Store, args: argparse.Namespace) -> int:
     loaded = []
     for path in args.files:
@@ -111,6 +122,7 @@ def cmd_import(store: Store, args: argparse.Namespace) -> int:
             bookmarks = load_file(path)
         except (OSError, ValueError) as exc:
             print(f"error: could not read {path}: {exc}", file=sys.stderr)
+            _permission_hint(exc, path)
             return 1
         added, updated = store.add_bookmarks(bookmarks, source=_source_key(path))
         print(f"{path}: {added} added, {updated} updated")
@@ -143,6 +155,7 @@ def cmd_sync(store: Store, args: argparse.Namespace) -> int:
             bookmarks = load_file(source.path)
         except (OSError, ValueError) as exc:
             print(f"error: could not read {source.name}: {exc}", file=sys.stderr)
+            _permission_hint(exc, source.path)
             status = 1
             continue
         added, updated = store.add_bookmarks(bookmarks, source=_source_key(source.path))
@@ -382,7 +395,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser(
-        "import", help="import a bookmarks HTML export, Chrome Bookmarks or Firefox places.sqlite"
+        "import",
+        help="import an HTML export or a browser's own bookmarks file (Chrome, Firefox, Safari)",
     )
     p.add_argument("files", nargs="+", type=Path)
     p.add_argument(
@@ -397,7 +411,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="import from installed browsers and fetch new pages, in one step",
         description=(
             "Find the bookmarks of every installed browser profile (Chrome, Edge, Brave,"
-            " Vivaldi, Chromium, Firefox), import them, and fetch pages not fetched yet."
+            " Vivaldi, Chromium, Firefox, Safari), import them, and fetch pages not fetched yet."
         ),
     )
     p.add_argument("--list", action="store_true", help="only show the bookmark files found")

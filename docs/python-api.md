@@ -40,10 +40,11 @@ See also [`examples/offline_demo.py`](../examples/offline_demo.py) and
 
 | Function | Returns |
 |---|---|
-| `load_file(path)` | `list[Bookmark]`. Detects Firefox SQLite, Chrome JSON or HTML from the content. Raises `ValueError` for a non-Firefox SQLite file. |
+| `load_file(path)` | `list[Bookmark]`. Detects Firefox SQLite, a Safari property list, Chrome JSON or HTML from the content. Raises `ValueError` for a non-Firefox SQLite file or an unreadable property list. |
 | `parse_netscape_html(text)` | `list[Bookmark]` from a Netscape HTML export |
 | `parse_chrome_json(text)` | `list[Bookmark]` from Chrome / Edge `Bookmarks` JSON |
 | `parse_firefox_places(path)` | `list[Bookmark]` from Firefox's `places.sqlite`, read from a temporary copy |
+| `parse_safari_plist(data)` | `list[Bookmark]` from the bytes of Safari's `Bookmarks.plist` (binary or XML) |
 
 Only `http` and `https` URLs are returned.
 

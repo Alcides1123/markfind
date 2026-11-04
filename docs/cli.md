@@ -28,6 +28,9 @@ contents:
 - An SQLite database is read as Firefox's `places.sqlite`. markfind reads a
   temporary copy, including changes Firefox hasn't saved to the main file yet,
   and never modifies the original.
+- A property list (binary or XML) is read as Safari's `Bookmarks.plist`.
+  Safari's *Favorites*, *Bookmarks Menu* and *Reading List* keep those names
+  as folders.
 - A file starting with `{` is read as Chrome / Edge `Bookmarks` JSON.
 - Anything else is read as a Netscape bookmark HTML export.
 
@@ -47,12 +50,15 @@ Rules:
   that's more likely a broken file than a deliberate clear-out. Without
   `--prune`, nothing is ever removed.
 
-Exit code 1 if a file can't be read.
+Exit code 1 if a file can't be read. On macOS, reading Safari's bookmarks
+needs *Full Disk Access* for your terminal app; if it's missing, markfind says
+how to allow it.
 
 ```sh
 markfind import bookmarks.html
 markfind import "$LOCALAPPDATA/Google/Chrome/User Data/Default/Bookmarks"
 markfind import ~/.mozilla/firefox/abcd1234.default-release/places.sqlite
+markfind import ~/Library/Safari/Bookmarks.plist
 ```
 
 ---
@@ -87,7 +93,7 @@ fetched 4, failed 0
 | Option | Meaning |
 |---|---|
 | `--list` | Only show the bookmark files found, one per line: name, then path. |
-| `--browser NAME` | Only this browser: `chrome`, `edge`, `brave`, `vivaldi`, `chromium` or `firefox`. Repeat for several. |
+| `--browser NAME` | Only this browser: `chrome`, `edge`, `brave`, `vivaldi`, `chromium`, `firefox` or `safari`. Repeat for several. |
 | `--prune` | Remove bookmarks that were deleted in the browser (see below). |
 | `--no-fetch` | Import only. |
 | `--workers`, `--timeout`, `--delay`, `--max-retry-wait`, `-q` | As for [`fetch`](#fetch). With `-q`, pruned bookmarks are counted but not listed. |
@@ -102,11 +108,17 @@ Where it looks:
 | Vivaldi | `%LOCALAPPDATA%\Vivaldi\User Data` | `~/Library/Application Support/Vivaldi` | `~/.config/vivaldi` |
 | Chromium | `%LOCALAPPDATA%\Chromium\User Data` | `~/Library/Application Support/Chromium` | `~/.config/chromium` |
 | Firefox | `%APPDATA%\Mozilla\Firefox\Profiles` | `~/Library/Application Support/Firefox/Profiles` | `~/.mozilla/firefox`, `~/.config/mozilla/firefox`, Snap and Flatpak |
+| Safari | — | `~/Library/Safari/Bookmarks.plist` | — |
 
 Every profile is included, and shown by the name the browser gives it (from
 Chromium's `Local State` file and Firefox's `profiles.ini`). On Linux,
-`$XDG_CONFIG_HOME` replaces `~/.config`. Safari isn't supported yet; export
-its bookmarks to HTML and use [`import`](#import).
+`$XDG_CONFIG_HOME` replaces `~/.config`.
+
+**Safari** has one bookmarks file, shown as *Safari (Default)*. macOS only
+lets apps with *Full Disk Access* read it. If your terminal app doesn't have
+it, `sync` reports Safari as unreadable, explains how to allow it (*System
+Settings → Privacy & Security → Full Disk Access*), and carries on with the
+other browsers.
 
 **Pruning.** With `--prune`, a bookmark is removed only if the file it was
 last imported from was read in this run and no longer contains it. So:
