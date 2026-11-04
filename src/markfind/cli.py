@@ -20,6 +20,7 @@ from .fetch import (
     fetch_many,
     fetch_page,
 )
+from .formats import FORMATS, to_markdown
 from .importers import load_file
 from .server import DEFAULT_HOST, DEFAULT_PORT, serve
 from .store import QueryError, Store, to_fts_query
@@ -35,6 +36,39 @@ SSL_HINT = (
 
 def default_db_path() -> Path:
     return Path(os.environ.get("MARKFIND_DB") or Path.home() / ".markfind.sqlite")
+
+
+def cmd_export(store: Store, args: argparse.Namespace) -> int:
+    records = store.records(args.folder)
+    if args.query:
+        query = args.query if args.raw else to_fts_query(args.query)
+        try:
+            ranked = [r.url for r in store.search(query, limit=-1)]
+        except QueryError as exc:
+            print(f"error: invalid query: {exc}", file=sys.stderr)
+            return 2
+        rank = {url: n for n, url in enumerate(ranked)}
+        records = sorted((r for r in records if r.url in rank), key=lambda r: rank[r.url])
+    if args.skip_dead:
+        records = [r for r in records if r.error_kind not in DEAD_KINDS]
+
+    if args.format == "markdown" and args.query:
+        text = to_markdown(records, ranked=True)
+    else:
+        text = FORMATS[args.format](records)
+    if args.output is None:
+        sys.stdout.write(text)
+        return 0
+    # The BOM tells Excel the CSV is UTF-8.
+    encoding = "utf-8-sig" if args.format == "csv" else "utf-8"
+    try:
+        with open(args.output, "w", encoding=encoding, newline="") as f:
+            f.write(text)
+    except OSError as exc:
+        print(f"error: could not write {args.output}: {exc}", file=sys.stderr)
+        return 1
+    print(f"exported {len(records)} bookmarks to {args.output}", file=sys.stderr)
+    return 0
 
 
 def parse_duration(text: str) -> timedelta:
@@ -430,6 +464,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("stats", help="show how many bookmarks are indexed")
     p.set_defaults(func=cmd_stats)
+
+    p = sub.add_parser(
+        "export",
+        help="write bookmarks to a file browsers can import, or Markdown, JSON, CSV",
+        description=(
+            "Write bookmarks out. The html format is a standard bookmark file that"
+            " every browser can import, e.g. after leaving out dead links with --skip-dead."
+        ),
+    )
+    p.add_argument("-f", "--format", choices=tuple(FORMATS), default="html", help="default: html")
+    p.add_argument("-o", "--output", type=Path, help="file to write (default: standard output)")
+    p.add_argument("--folder", help="only this folder and its subfolders")
+    p.add_argument(
+        "--query", metavar="WORDS", help="only bookmarks matching this search, best first"
+    )
+    p.add_argument("--raw", action="store_true", help="--query uses FTS5 syntax, as in search")
+    p.add_argument(
+        "--skip-dead",
+        action="store_true",
+        help="leave out bookmarks that are likely dead (what 'markfind broken' lists)",
+    )
+    p.set_defaults(func=cmd_export)
 
     p = sub.add_parser(
         "broken",

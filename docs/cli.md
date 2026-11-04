@@ -388,6 +388,60 @@ problems clear themselves with `markfind fetch --failed`.
 
 ---
 
+## export
+
+```text
+markfind export [-f html|markdown|json|csv] [-o FILE]
+                [--folder PATH] [--query WORDS [--raw]] [--skip-dead]
+```
+
+Writes bookmarks out, to standard output or to `FILE`.
+
+| Format | What you get |
+|---|---|
+| `html` (default) | A standard bookmark file with your folders and dates. Every browser can import it. |
+| `markdown` | A reading list: a heading per folder and `- [Title](url)` links. With `--query`, a numbered list in ranked order. |
+| `json` | A list of objects with `url`, `title`, `folder`, `added_at`, `fetched_at` and `status`. |
+| `csv` | The same fields as columns. Written with a byte-order mark when saved to a file, so Excel reads it as UTF-8. |
+
+`status` is `indexed`, `pending` (not fetched yet), or the
+[failure kind](#fetch) of the last fetch.
+
+| Option | Meaning |
+|---|---|
+| `-o FILE`, `--output FILE` | Write to `FILE` instead of standard output. |
+| `--folder PATH` | Only this folder and its subfolders. |
+| `--query WORDS` | Only bookmarks matching this search, best match first. Quote it if it has several words. |
+| `--raw` | `--query` uses [FTS5 syntax](#raw-queries---raw). |
+| `--skip-dead` | Leave out bookmarks that are most likely dead for good: what [`broken`](#broken) lists by default (HTTP 404/410 or unknown host). Timeouts and other failures that may be temporary are kept. |
+
+The options combine.
+
+**Cleaning up your browser's bookmarks.** markfind never changes your
+browser's bookmarks, but it can give you a cleaned-up file to import:
+
+```sh
+markfind broken                                    # check what will be left out
+markfind export --skip-dead -o clean-bookmarks.html
+```
+
+Then import `clean-bookmarks.html` in the browser: in Chrome and Edge,
+*Bookmarks manager → ⋮ → Import bookmarks*, and in Firefox, *Manage bookmarks →
+Import and Backup → Import Bookmarks from HTML*. Browsers add imported
+bookmarks alongside the existing ones, usually in an *Imported* folder, so to
+replace your bookmarks, delete the old ones first.
+
+**Sharing a reading list.**
+
+```sh
+markfind export --query "sqlite" -f markdown -o sqlite-reading.md
+markfind export --folder "Bookmarks bar/Recipes" -f markdown
+```
+
+Exit codes: 1 if the file can't be written, 2 for an invalid `--raw` query.
+
+---
+
 ## stats
 
 ```text

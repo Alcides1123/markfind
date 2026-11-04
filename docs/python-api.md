@@ -91,6 +91,7 @@ thread.
 | `similar(url, limit=10, mark=("[", "]")) -> Similar` | Bookmarks most like this one (see [`markfind similar`](cli.md#similar)). Raises `KeyError` if the URL isn't in the database. Works on read-only connections. |
 | `failures(kinds=None) -> list[Failure]` | Bookmarks whose last fetch failed, optionally only the given kinds. |
 | `list_bookmarks(folder=None) -> list[(url, title, folder)]` | All bookmarks, or one folder and its subfolders. |
+| `records(folder=None) -> list[Record]` | Like `list_bookmarks`, with dates and fetch status, for exporting. |
 | `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`. |
 | `pages() -> list[(url, title, folder, text)]` | Every bookmark with its indexed page text (`''` if not fetched). |
 | `duplicates(by=("url", "text")) -> list[Group]` | Bookmarks saved more than once; see [`markfind.duplicates`](#markfindduplicates). |
@@ -101,6 +102,8 @@ Result types (frozen dataclasses):
 - **`Similar`**: `title` (of the bookmark you asked about), `keywords` (most
   telling first), `results` (`list[SearchResult]`)
 - **`Failure`**: `url`, `title`, `folder`, `kind`, `error`, `fetched_at`
+- **`Record`**: `url`, `title`, `folder`, `added_at`, `fetched_at`,
+  `error_kind`, and `status` (`indexed`, `pending` or the failure kind)
 
 **`to_fts_query(text)`** turns plain words into a safe FTS5 query in which
 all words must match. Pass the user's text through it unless you want raw FTS5
@@ -147,6 +150,29 @@ def fetch_from_cache(url, timeout):
 
 
 results = fetch_many(store.pending(), fetch=fetch_from_cache)
+```
+
+## `markfind.formats`
+
+Each function takes a list of `Record`s and returns the whole file as a string.
+
+| Function | Returns |
+|---|---|
+| `to_html(records)` | A Netscape bookmark file that browsers import. `parse_netscape_html` reads it back unchanged. |
+| `to_markdown(records, ranked=False)` | Sections per folder, or a numbered list in the given order if `ranked`. |
+| `to_json(records)` / `to_csv(records)` | The `FIELDS`: `url`, `title`, `folder`, `added_at`, `fetched_at`, `status`. |
+
+`FORMATS` maps each format name to its function.
+
+```python
+from pathlib import Path
+
+from markfind.formats import to_html
+from markfind.store import Store
+
+with Store("bookmarks.sqlite") as store:
+    keep = [r for r in store.records() if r.status in ("indexed", "pending")]
+Path("working-links.html").write_text(to_html(keep), encoding="utf-8")
 ```
 
 ## `markfind.extract`
