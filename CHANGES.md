@@ -50,6 +50,10 @@
   readable messages such as `HTTP 404 Not Found` or `host not found` (#1).
 - New `markfind broken` command lists likely-dead bookmarks; `--all`,
   `--kind` and `--urls` options (#1).
+- New `markfind duplicates` finds bookmarks saved more than once: the same
+  URL apart from `http`/`https`, `www.`, trailing slashes, `#section` links
+  and tracking parameters, or the same page text. The cleanest URL is
+  starred, and `--urls` lists the other copies (#17).
 - `stats` breaks failures down by kind; `fetch` prints a hint when SSL
   certificate checks fail (#1).
 - Databases are versioned (`PRAGMA user_version`) and upgraded automatically

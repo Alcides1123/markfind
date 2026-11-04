@@ -64,6 +64,7 @@ python -m pip install -e .
 | `markfind search WORDS... [-n N] [--raw]` | Search titles, URLs, folders and page text, best matches first. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
 | `markfind similar URL [-n N]` | "More like this": bookmarks most like this one, and the distinctive words they share. |
 | `markfind list [--folder PATH]` | List bookmarks, optionally one folder and its subfolders. |
+| `markfind duplicates [--by url\|text] [--urls]` | Bookmarks saved more than once: the same URL apart from `http`/`https`, `www.`, tracking parameters and the like, or the same page text. The cleanest URL is starred; `--urls` prints the other copies. |
 | `markfind broken [--all] [--kind KIND] [--urls]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `other`); `--urls` prints bare URLs for scripting. |
 | `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
 | `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, plus a dead-links view. Local and read-only. |

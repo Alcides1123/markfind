@@ -92,6 +92,8 @@ thread.
 | `failures(kinds=None) -> list[Failure]` | Bookmarks whose last fetch failed, optionally only the given kinds. |
 | `list_bookmarks(folder=None) -> list[(url, title, folder)]` | All bookmarks, or one folder and its subfolders. |
 | `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`. |
+| `pages() -> list[(url, title, folder, text)]` | Every bookmark with its indexed page text (`''` if not fetched). |
+| `duplicates(by=("url", "text")) -> list[Group]` | Bookmarks saved more than once; see [`markfind.duplicates`](#markfindduplicates). |
 
 Result types (frozen dataclasses):
 
@@ -103,6 +105,25 @@ Result types (frozen dataclasses):
 **`to_fts_query(text)`** turns plain words into a safe FTS5 query in which
 all words must match. Pass the user's text through it unless you want raw FTS5
 syntax.
+
+## `markfind.duplicates`
+
+| Function | Returns |
+|---|---|
+| `canonical_url(url)` | A comparison key: the URL without scheme, `www.`, default port, trailing slash, index page, `#section` or tracking parameters. Not a URL to visit. |
+| `text_key(text, min_words=50)` | A fingerprint of the text ignoring case and spacing, or `None` if it's shorter than `min_words`. |
+| `find_duplicates(pages, by=("url", "text"), min_words=50)` | `list[Group]` from `(url, title, folder, text)` rows, same-URL groups first. |
+
+A **`Group`** has `reason` (`"url"` or `"text"`), `entries` (a list of
+**`Entry(url, title, folder)`**, the cleanest URL first) and `title`.
+
+```python
+from markfind.duplicates import canonical_url
+
+canonical_url("http://www.example.com/a/?utm_source=x#top")  # 'example.com/a'
+```
+
+`TRACKING_PARAMS` and `TRACKING_PREFIXES` list the parameters that are removed.
 
 ## `markfind.fetch`
 

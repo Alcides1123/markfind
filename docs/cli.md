@@ -305,6 +305,67 @@ but not `Bookmarks bar/Devices`.
 
 ---
 
+## duplicates
+
+```text
+markfind duplicates [--by url|text] [--urls]
+```
+
+Finds bookmarks you saved more than once, so you can tidy them up in your
+browser. markfind never changes your browser's bookmarks.
+
+```text
+$ markfind duplicates
+Same page, different URLs (1):
+  SQLite FTS5
+  * https://sqlite.org/fts5.html
+    https://sqlite.org/fts5.html#overview_of_fts5                    folder: Old
+    http://www.sqlite.org/fts5.html?utm_source=hn&utm_medium=social  folder: Old
+
+Same page text (2):
+  asyncio
+  * https://docs.python.org/3/library/asyncio-task.html
+    https://docs.python.org/3.15/library/asyncio-task.html  folder: Old
+  Git rebasing
+  * https://git-scm.com/book/en/v2/Git-Branching-Rebasing
+    https://git-scm.com/book/en/v2/Git-Branching-Rebasing?ref=blog  folder: Old
+
+* = cleanest URL. 4 extra copies; 'markfind duplicates --urls' lists them.
+```
+
+| Option | Meaning |
+|---|---|
+| `--by url` | Only bookmarks whose URLs match. |
+| `--by text` | Only bookmarks whose page text matches. |
+| `--urls` | Print only the extra copies' URLs (everything but the starred one), one per line. |
+
+**Same page, different URLs.** URLs are compared after removing differences
+that don't change the page:
+
+- `http` and `https`, a leading `www.`, upper-case letters in the host name,
+  and default ports (`:80`, `:443`);
+- a trailing `/`, and `index.html`, `index.htm`, `index.php` or
+  `default.aspx` at the end of the path;
+- `#section` links. App routes like `#/inbox` or `#!/inbox` are kept, since
+  they show different pages;
+- tracking parameters: `utm_*`, `fbclid`, `gclid`, `msclkid`, `mc_cid`,
+  `mc_eid`, `igshid` and similar. Other parameters are kept, in any order.
+
+Paths stay case-sensitive, and parameters such as `?ref=` or `?id=` are kept
+because some sites use them for real content.
+
+**Same page text.** Fetched pages whose text is identical, ignoring case and
+spacing. This catches pages that moved, redirects, version-pinned docs and
+other URLs that serve the same content. Pages under 50 words are skipped, so
+short error and login pages don't all match each other. Pages behind a login
+can still look identical, so check the group before deleting anything. A group
+already shown under *Same page, different URLs* isn't repeated.
+
+**Which one is starred.** In each group the cleanest URL comes first: `https`
+before `http`, then the shortest.
+
+---
+
 ## broken
 
 ```text

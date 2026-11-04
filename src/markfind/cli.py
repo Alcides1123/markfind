@@ -218,6 +218,43 @@ def cmd_list(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_duplicates(store: Store, args: argparse.Namespace) -> int:
+    groups = store.duplicates(by=(args.by,) if args.by else ("url", "text"))
+
+    if args.urls:
+        seen = set()
+        for group in groups:
+            for entry in group.entries[1:]:
+                if entry.url not in seen:
+                    seen.add(entry.url)
+                    print(entry.url)
+        return 0
+
+    if not groups:
+        print("no duplicates found")
+        return 0
+    headings = {"url": "Same page, different URLs", "text": "Same page text"}
+    for reason, heading in headings.items():
+        section = [g for g in groups if g.reason == reason]
+        if not section:
+            continue
+        if reason != groups[0].reason:
+            print()
+        print(f"{heading} ({len(section)}):")
+        for group in section:
+            print(f"  {group.title}")
+            width = min(max(len(e.url) for e in group.entries), 70)
+            for n, entry in enumerate(group.entries):
+                line = f"  {'*' if n == 0 else ' '} {entry.url:<{width}}"
+                if entry.folder:
+                    line += f"  folder: {entry.folder}"
+                print(line.rstrip())
+    copies = sum(len(g.entries) - 1 for g in groups)
+    print()
+    print(f"* = cleanest URL. {copies} extra copies; 'markfind duplicates --urls' lists them.")
+    return 0
+
+
 def cmd_stats(store: Store, args: argparse.Namespace) -> int:
     s = store.stats()
     print(f"bookmarks: {s.total}")
@@ -371,6 +408,25 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("list", help="list bookmarks")
     p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
     p.set_defaults(func=cmd_list)
+
+    p = sub.add_parser(
+        "duplicates",
+        help="find bookmarks saved more than once",
+        description=(
+            "Find bookmarks that are the same page: the same URL apart from cosmetic"
+            " differences (http/https, www., tracking parameters, ...), or the same"
+            " page text."
+        ),
+    )
+    p.add_argument(
+        "--by", choices=("url", "text"), help="only this kind of duplicate (default: both)"
+    )
+    p.add_argument(
+        "--urls",
+        action="store_true",
+        help="print only the extra copies' URLs (all but the starred one), one per line",
+    )
+    p.set_defaults(func=cmd_duplicates)
 
     p = sub.add_parser("stats", help="show how many bookmarks are indexed")
     p.set_defaults(func=cmd_stats)

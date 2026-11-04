@@ -29,7 +29,8 @@
 
 - [x] Dead-link report: list bookmarks that now return 404 / DNS errors (#1)
 - [ ] Remove dead bookmarks from the index (`markfind broken --delete`)
-- [ ] Duplicate detection (same URL after normalization, or same page text)
+- [x] Duplicate detection (same URL after normalization, or same page text) (#17)
+- [ ] Near-duplicate pages (mostly the same text, e.g. a page with a changed footer)
 - [ ] Export search results to Markdown / HTML / JSON
 
 ## 0.5 — Discovery

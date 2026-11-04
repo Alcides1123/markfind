@@ -14,6 +14,7 @@ The code is small and has one module per stage, all in `src/markfind/`:
 | `fetch.py` | Download pages concurrently and politely; classify failures |
 | `extract.py` | Turn HTML into the page's main text |
 | `store.py` | SQLite schema, migrations, the FTS5 index, search |
+| `duplicates.py` | URL normalization and duplicate grouping |
 | `cli.py` | The `markfind` command |
 
 Everything uses the Python standard library: `html.parser`, `urllib`,
