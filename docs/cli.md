@@ -17,7 +17,7 @@ Commands: [`import`](#import) · [`fetch`](#fetch) · [`search`](#search) ·
 ## import
 
 ```text
-markfind import FILE [FILE ...]
+markfind import [--prune] FILE [FILE ...]
 ```
 
 Adds bookmarks from one or more files. The format is detected from the file
@@ -38,8 +38,12 @@ Rules:
   the database **updates** its title and folder and keeps its fetched page
   text, so re-importing a fresh export is always safe.
 - If the same URL appears twice in one file, the last occurrence wins.
-- Bookmarks deleted from the browser are not removed from markfind (yet; see
-  the [roadmap](../ROADMAP.md)).
+- Each bookmark remembers the file it was last imported from.
+- `--prune` removes bookmarks that were imported from these files before but
+  aren't in them any more, and lists them. Bookmarks imported from other files
+  are never touched. A file with no bookmarks at all is not pruned, since
+  that's more likely a broken file than a deliberate clear-out. Without
+  `--prune`, nothing is ever removed.
 
 Exit code 1 if a file can't be read.
 
@@ -48,6 +52,79 @@ markfind import bookmarks.html
 markfind import "$LOCALAPPDATA/Google/Chrome/User Data/Default/Bookmarks"
 markfind import ~/.mozilla/firefox/abcd1234.default-release/places.sqlite
 ```
+
+---
+
+## sync
+
+```text
+markfind sync [--list] [--browser NAME] [--prune] [--no-fetch]
+              [--workers N] [--timeout S] [--delay S] [-q]
+```
+
+Finds the bookmarks of every browser profile on this computer, imports them,
+and fetches pages that haven't been fetched yet. It's `import` plus `fetch`
+without having to know where your browsers keep their files, so it's the
+easiest way to keep markfind up to date.
+
+```text
+$ markfind sync --prune
+Chrome (Personal): 3 added, 409 updated
+Chrome (Work): 0 added, 87 updated
+Firefox (default-release): 1 added, 155 updated
+Chrome (Personal): 2 removed
+  - Old tutorial <https://old.example/tutorial>
+  - Conference 2024 <https://conf.example/2024>
+Chrome (Work): 0 removed
+Firefox (default-release): 0 removed
+[1/4] ok: https://new.example/
+...
+fetched 4, failed 0
+```
+
+| Option | Meaning |
+|---|---|
+| `--list` | Only show the bookmark files found, one per line: name, then path. |
+| `--browser NAME` | Only this browser: `chrome`, `edge`, `brave`, `vivaldi`, `chromium` or `firefox`. Repeat for several. |
+| `--prune` | Remove bookmarks that were deleted in the browser (see below). |
+| `--no-fetch` | Import only. |
+| `--workers`, `--timeout`, `--delay`, `-q` | As for [`fetch`](#fetch). With `-q`, pruned bookmarks are counted but not listed. |
+
+Where it looks:
+
+| Browser | Windows | macOS | Linux |
+|---|---|---|---|
+| Chrome | `%LOCALAPPDATA%\Google\Chrome\User Data` | `~/Library/Application Support/Google/Chrome` | `~/.config/google-chrome` |
+| Edge | `%LOCALAPPDATA%\Microsoft\Edge\User Data` | `~/Library/Application Support/Microsoft Edge` | `~/.config/microsoft-edge` |
+| Brave | `%LOCALAPPDATA%\BraveSoftware\Brave-Browser\User Data` | `~/Library/Application Support/BraveSoftware/Brave-Browser` | `~/.config/BraveSoftware/Brave-Browser` |
+| Vivaldi | `%LOCALAPPDATA%\Vivaldi\User Data` | `~/Library/Application Support/Vivaldi` | `~/.config/vivaldi` |
+| Chromium | `%LOCALAPPDATA%\Chromium\User Data` | `~/Library/Application Support/Chromium` | `~/.config/chromium` |
+| Firefox | `%APPDATA%\Mozilla\Firefox\Profiles` | `~/Library/Application Support/Firefox/Profiles` | `~/.mozilla/firefox`, `~/.config/mozilla/firefox`, Snap and Flatpak |
+
+Every profile is included, and shown by the name the browser gives it (from
+Chromium's `Local State` file and Firefox's `profiles.ini`). On Linux,
+`$XDG_CONFIG_HOME` replaces `~/.config`. Safari isn't supported yet; export
+its bookmarks to HTML and use [`import`](#import).
+
+**Pruning.** With `--prune`, a bookmark is removed only if the file it was
+last imported from was read in this run and no longer contains it. So:
+
+- a bookmark you moved from one browser to another stays;
+- bookmarks you imported from an HTML export, or from a browser you left out
+  with `--browser`, are never removed;
+- a browser file that can't be read, or that has no bookmarks at all, is not
+  pruned.
+
+Removing a bookmark deletes its indexed page text. If you add it back, it's
+fetched again on the next sync.
+
+If one browser's file can't be read, sync reports it, carries on with the
+others, and exits with code 1. It also exits with code 1 if no browser
+bookmarks are found at all.
+
+To run it on a schedule, see [`examples/refresh.sh`](../examples/refresh.sh)
+and [`examples/refresh.ps1`](../examples/refresh.ps1); `markfind sync --prune
+-q` can replace their import and fetch lines.
 
 ---
 

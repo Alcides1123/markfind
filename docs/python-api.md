@@ -56,6 +56,24 @@ from markfind.importers import Bookmark
 store.add_bookmarks(Bookmark(url, folder="Reading list") for url in urls)
 ```
 
+## `markfind.browsers`
+
+**`find_sources() -> list[Source]`** returns the bookmark file of every
+browser profile found on this computer, Chromium browsers first. Each
+**`Source`** has `browser` (`"Chrome"`, `"Firefox"`, ...), `profile` (the name
+shown in the browser), `path`, and `name` (`"Chrome (Work)"`). Pass the path
+to `load_file()`.
+
+```python
+from markfind.browsers import find_sources
+from markfind.importers import load_file
+
+for source in find_sources():
+    print(source.name, len(load_file(source.path)))
+```
+
+`BROWSERS` lists the supported browser names.
+
 ## `markfind.store`
 
 **`Store(path)`** opens or creates a database and migrates it if needed. Use
@@ -64,7 +82,8 @@ thread.
 
 | Method | Description |
 |---|---|
-| `add_bookmarks(bookmarks) -> (added, updated)` | Insert new bookmarks. For URLs already present, update the title and folder and keep the page text. |
+| `add_bookmarks(bookmarks, source=None) -> (added, updated)` | Insert new bookmarks. For URLs already present, update the title and folder and keep the page text. `source` (any string, usually the file path) records where they came from; `None` keeps the recorded source. |
+| `prune(source, keep) -> list[(url, title)]` | Delete bookmarks whose source is `source` and whose URL isn't in `keep`. Returns what was removed. Import every source before pruning any. |
 | `pending(refetch=False, older_than=None, failed=False) -> list[(id, url)]` | Bookmarks to fetch: never-fetched ones, plus everything (`refetch`), those fetched before `now - older_than` (a `timedelta`), or failed ones (`failed`). |
 | `set_page(id, text, page_title="")` | Store fetched text and clear any error. `page_title` is used only if the bookmark has no title. |
 | `set_error(id, message, kind="other")` | Record a failed fetch. |

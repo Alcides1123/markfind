@@ -10,6 +10,7 @@ The code is small and has one module per stage, all in `src/markfind/`:
 | Module | Responsibility |
 |---|---|
 | `importers.py` | Parse browser exports into `Bookmark` objects |
+| `browsers.py` | Find the bookmark files of installed browsers, for `sync` |
 | `fetch.py` | Download pages concurrently and politely; classify failures |
 | `extract.py` | Turn HTML into the page's main text |
 | `store.py` | SQLite schema, migrations, the FTS5 index, search |
@@ -46,6 +47,29 @@ chain to build the path:
   skipped. Firefox stores each tag as a second copy of the bookmark there.
 - A missing bookmark title falls back to the page title in `moz_places`.
 - `dateAdded` is microseconds since 1970.
+
+## Syncing and pruning
+
+`markfind sync` is `import` with automatic file discovery. `find_sources()`
+looks in each browser's standard data folder for the current platform:
+
+- **Chromium browsers** keep one folder per profile (`Default`, `Profile 1`,
+  ...) under a "User Data" folder, each with a `Bookmarks` file. The profile
+  names the user sees come from `profile.info_cache` in the `Local State` JSON
+  file next to them.
+- **Firefox** keeps profiles in `Profiles/` (Windows, macOS) or directly in
+  `~/.mozilla/firefox` (Linux). Any folder with a `places.sqlite` counts, and
+  `profiles.ini` supplies the names.
+
+Bad or missing metadata falls back to the folder name, and the same file
+reached twice (through a symlink, say) is only read once.
+
+Every import records each bookmark's `source`: the absolute path of the file
+it came from. Pruning a file deletes bookmarks whose `source` is that file and
+whose URL isn't in it any more. A URL that's in two files belongs to whichever
+was imported last, so `sync` imports every file first and only then prunes.
+That way a bookmark that moved from Firefox to Chrome is claimed by Chrome
+before Firefox is pruned.
 
 ## Fetching
 
@@ -119,7 +143,8 @@ CREATE TABLE bookmarks (
     added_at TEXT,        -- from the browser export
     fetched_at TEXT,      -- last fetch attempt, ISO 8601 UTC
     fetch_error TEXT,     -- NULL if the last fetch succeeded
-    error_kind TEXT       -- failure kind, NULL if the last fetch succeeded
+    error_kind TEXT,      -- failure kind, NULL if the last fetch succeeded
+    source TEXT           -- file it was last imported from, for pruning
 );
 
 CREATE VIRTUAL TABLE bookmarks_fts USING fts5(
@@ -207,6 +232,7 @@ The database stores its schema version in `PRAGMA user_version`. When
 |---|---|
 | 0 | markfind 0.1.0 |
 | 1 | Adds `bookmarks.error_kind`. Existing failures get the kind `other`. |
+| 2 | Adds `bookmarks.source`. Existing bookmarks get no source, so they're never pruned until a later import records one. |
 
 See [Development](development.md#changing-the-database-schema) for how to add
 a migration.

@@ -1,4 +1,4 @@
-"""Command-line interface: ``markfind import | fetch | search | list | stats``."""
+"""Command-line interface: ``markfind import | sync | fetch | search | list | ...``."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from . import __version__
+from .browsers import BROWSERS, find_sources
 from .extract import Page
 from .fetch import (
     DEAD_KINDS,
@@ -45,23 +46,90 @@ def parse_duration(text: str) -> timedelta:
     return timedelta(**{_DURATION_UNITS[unit]: int(amount)})
 
 
+def _source_key(path: Path) -> str:
+    """How a bookmark file is recorded as a bookmark's source."""
+    return str(Path(path).resolve())
+
+
+def _prune(store: Store, loaded: list[tuple[str, Path, list[str]]], quiet: bool) -> None:
+    """Remove bookmarks that are no longer in the files they were imported from.
+
+    Prune only after every file has been imported, so a bookmark that moved
+    from one file to another has already been claimed by its new file.
+    """
+    for label, path, urls in loaded:
+        if not urls:
+            # More likely a broken or wrong file than a deliberate clear-out.
+            print(f"{label}: no bookmarks found, not pruning")
+            continue
+        removed = store.prune(_source_key(path), urls)
+        print(f"{label}: {len(removed)} removed")
+        if not quiet:
+            for url, title in removed:
+                print(f"  - {title or url} <{url}>")
+
+
 def cmd_import(store: Store, args: argparse.Namespace) -> int:
+    loaded = []
     for path in args.files:
         try:
             bookmarks = load_file(path)
         except (OSError, ValueError) as exc:
             print(f"error: could not read {path}: {exc}", file=sys.stderr)
             return 1
-        added, updated = store.add_bookmarks(bookmarks)
+        added, updated = store.add_bookmarks(bookmarks, source=_source_key(path))
         print(f"{path}: {added} added, {updated} updated")
+        loaded.append((str(path), path, [bm.url for bm in bookmarks]))
+    if args.prune:
+        _prune(store, loaded, quiet=False)
     return 0
+
+
+def cmd_sync(store: Store, args: argparse.Namespace) -> int:
+    sources = find_sources()
+    if args.browser:
+        sources = [s for s in sources if s.browser.lower() in args.browser]
+    if not sources:
+        print(
+            "error: no browser bookmarks found; import an exported file with"
+            " 'markfind import FILE' instead",
+            file=sys.stderr,
+        )
+        return 1
+    if args.list:
+        for source in sources:
+            print(f"{source.name}\t{source.path}")
+        return 0
+
+    status = 0
+    loaded = []
+    for source in sources:
+        try:
+            bookmarks = load_file(source.path)
+        except (OSError, ValueError) as exc:
+            print(f"error: could not read {source.name}: {exc}", file=sys.stderr)
+            status = 1
+            continue
+        added, updated = store.add_bookmarks(bookmarks, source=_source_key(source.path))
+        print(f"{source.name}: {added} added, {updated} updated")
+        loaded.append((source.name, source.path, [bm.url for bm in bookmarks]))
+    if args.prune:
+        _prune(store, loaded, args.quiet)
+    if not args.no_fetch:
+        _fetch(store, store.pending(), args)
+    return status
 
 
 def cmd_fetch(store: Store, args: argparse.Namespace) -> int:
     pending = store.pending(refetch=args.all, older_than=args.older_than, failed=args.failed)
+    _fetch(store, pending, args)
+    return 0
+
+
+def _fetch(store: Store, pending: list[tuple[int, str]], args: argparse.Namespace) -> None:
     if not pending:
         print("nothing to fetch")
-        return 0
+        return
 
     ok = failed = 0
     kinds: set[str] = set()
@@ -90,7 +158,6 @@ def cmd_fetch(store: Store, args: argparse.Namespace) -> int:
         print("run 'markfind broken --all' to see what failed")
     if "ssl" in kinds:
         print(SSL_HINT)
-    return 0
 
 
 def cmd_search(store: Store, args: argparse.Namespace) -> int:
@@ -179,6 +246,18 @@ def cmd_broken(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_fetch_options(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--workers", type=int, default=8, help="parallel downloads (default: 8)")
+    p.add_argument("--timeout", type=float, default=10.0, help="seconds per page (default: 10)")
+    p.add_argument(
+        "--delay",
+        type=float,
+        default=1.0,
+        help="minimum seconds between requests to the same site (default: 1, 0 disables)",
+    )
+    p.add_argument("-q", "--quiet", action="store_true", help="only print the summary")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="markfind", description="Full-text search over your browser bookmarks."
@@ -192,9 +271,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("import", help="import a bookmarks HTML export or Chrome Bookmarks file")
+    p = sub.add_parser(
+        "import", help="import a bookmarks HTML export, Chrome Bookmarks or Firefox places.sqlite"
+    )
     p.add_argument("files", nargs="+", type=Path)
+    p.add_argument(
+        "--prune",
+        action="store_true",
+        help="remove bookmarks imported from these files earlier that are no longer in them",
+    )
     p.set_defaults(func=cmd_import)
+
+    p = sub.add_parser(
+        "sync",
+        help="import from installed browsers and fetch new pages, in one step",
+        description=(
+            "Find the bookmarks of every installed browser profile (Chrome, Edge, Brave,"
+            " Vivaldi, Chromium, Firefox), import them, and fetch pages not fetched yet."
+        ),
+    )
+    p.add_argument("--list", action="store_true", help="only show the bookmark files found")
+    p.add_argument(
+        "--browser",
+        action="append",
+        type=str.lower,
+        choices=[b.lower() for b in BROWSERS],
+        help="only this browser; repeat for several",
+    )
+    p.add_argument(
+        "--prune", action="store_true", help="remove bookmarks that were deleted in the browser"
+    )
+    p.add_argument("--no-fetch", action="store_true", help="import only, don't fetch pages")
+    _add_fetch_options(p)
+    p.set_defaults(func=cmd_sync)
 
     p = sub.add_parser("fetch", help="download bookmarked pages and index their text")
     p.add_argument("--all", action="store_true", help="re-fetch pages that were already fetched")
@@ -205,15 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="also re-fetch pages fetched more than AGE ago, e.g. 90d, 2w, 12h",
     )
     p.add_argument("--failed", action="store_true", help="also retry pages whose last fetch failed")
-    p.add_argument("--workers", type=int, default=8, help="parallel downloads (default: 8)")
-    p.add_argument("--timeout", type=float, default=10.0, help="seconds per page (default: 10)")
-    p.add_argument(
-        "--delay",
-        type=float,
-        default=1.0,
-        help="minimum seconds between requests to the same site (default: 1, 0 disables)",
-    )
-    p.add_argument("-q", "--quiet", action="store_true", help="only print the summary")
+    _add_fetch_options(p)
     p.set_defaults(func=cmd_fetch)
 
     p = sub.add_parser("search", help="search titles, URLs, folders and page text")

@@ -19,7 +19,19 @@ python examples/offline_demo.py
 
 ## 2. Get your bookmarks
 
-markfind reads three formats.
+**The quick way:** let markfind find them.
+
+```sh
+markfind sync --list    # shows the browser profiles it found
+markfind sync           # imports them all and fetches the pages
+```
+
+This works for Chrome, Edge, Brave, Vivaldi, Chromium and Firefox, with every
+profile. If `sync` finds what you want, skip to [step 3](#3-import-fetch-search)
+and use `markfind sync` in place of `import` and `fetch`. See
+[`sync`](cli.md#sync) for details.
+
+Otherwise, give markfind a file. It reads three formats.
 
 **An HTML export (any browser).** This is the standard "Netscape bookmark
 file" that all major browsers produce:
