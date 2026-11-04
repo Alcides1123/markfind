@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .duplicates import Group, find_duplicates
 from .importers import Bookmark
 
 SCHEMA = """
@@ -276,3 +277,17 @@ class Store:
             """
         ).fetchall()
         return Stats(*row, failed_by_kind=dict(by_kind))
+
+    def pages(self) -> list[tuple[str, str, str, str]]:
+        """(url, title, folder, page text) for every bookmark; text is '' if not fetched."""
+        return self.db.execute(
+            """
+            SELECT b.url, b.title, b.folder, coalesce(f.body, '')
+            FROM bookmarks AS b LEFT JOIN bookmarks_fts AS f ON f.rowid = b.id
+            ORDER BY b.id
+            """
+        ).fetchall()
+
+    def duplicates(self, by: tuple[str, ...] = ("url", "text")) -> list[Group]:
+        """Bookmarks saved more than once; see ``markfind.duplicates``."""
+        return find_duplicates(self.pages(), by=by)

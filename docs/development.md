@@ -33,6 +33,7 @@ The tests never touch the network:
 | `test_firefox.py` | Firefox `places.sqlite` import, including WAL changes |
 | `test_extract.py` | Text extraction and boilerplate removal |
 | `test_fetch.py` | Rate limiting, host interleaving, duration parsing |
+| `test_duplicates.py` | URL normalization (what must and must not match), text grouping, `markfind duplicates` |
 | `test_errors.py` | Failure classification and schema migrations |
 | `test_store.py` | Storage, indexing and search |
 | `test_cli.py` | The `markfind` command end to end |
