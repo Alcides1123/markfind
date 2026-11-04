@@ -68,7 +68,7 @@ python -m pip install -e .
 | `markfind broken [--all] [--kind KIND] [--urls]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `empty`, `other`); `--urls` prints bare URLs for scripting. |
 | `markfind export [-f FORMAT] [-o FILE] [--skip-dead]` | Write bookmarks as an HTML file any browser can import, or as Markdown, JSON or CSV. `--skip-dead` leaves out dead links; `--folder` and `--query` pick which bookmarks. |
 | `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
-| `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, plus a dead-links view. Local and read-only. |
+| `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, a *Similar* button on each result, and a dead-links view. Local and read-only. |
 
 When indexing a page, markfind skips navigation, footers, sidebars, cookie
 banners and similar boilerplate, and keeps only the `<main>` / `<article>`

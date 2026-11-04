@@ -37,7 +37,7 @@
 ## 0.5 — Discovery
 
 - [x] "More like this": `markfind similar URL` (#15)
-- [ ] Web UI: a "similar" link on each search result
+- [x] Web UI: a "similar" link on each search result (#28)
 - [ ] Group bookmarks into topics automatically, using the same keywords
 
 ## Later

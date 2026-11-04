@@ -206,6 +206,7 @@ endpoints and three static files. The files (`web/index.html`, `app.js` and
 
 | Endpoint | Returns |
 |---|---|
+| `GET /api/similar?url=…&limit=N` | `{"url", "title", "keywords", "results": [...]}`, results as for search. `400` without `url`, `404` if the bookmark isn't in markfind. |
 | `GET /api/search?q=…&raw=1&limit=N` | `{"query", "results": [{url, title, folder, snippet}]}`. `400` with `{"error"}` for an invalid raw query. |
 | `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked}]}` |
 | `GET /api/stats` | `{"total", "indexed", "failed", "pending", "failed_by_kind"}` |

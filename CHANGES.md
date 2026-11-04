@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `markfind serve`: each search result has a *Similar* button that shows the
+  bookmarks most like it and the words they share, using the same matching as
+  `markfind similar`. The view is kept in the page address, and *Back to
+  search* or `Esc` returns to the search. New endpoint:
+  `GET /api/similar?url=...` (#28).
+
 - `fetch` and `sync` retry pages answered with HTTP 429 ("too many requests")
   or 503, after the wait the site's `Retry-After` header asks for, holding
   back every request to that site meanwhile. `--max-retry-wait S` (default 60)
