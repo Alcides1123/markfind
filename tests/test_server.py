@@ -95,6 +95,19 @@ def test_search_options_and_errors(server):
     assert data["error"].startswith("invalid query")
 
 
+def test_folders_and_search_in_folder(server):
+    status, data = get_json(server, "/api/folders")
+    assert status == 200
+    assert data == {"folders": [{"path": "Dev", "count": 2}, {"path": "Old", "count": 2}]}
+
+    _, data = get_json(server, "/api/search?q=ranking&folder=Dev")
+    assert len(data["results"]) == 2
+    _, data = get_json(server, "/api/search?q=ranking&folder=Old")
+    assert data["results"] == []
+    _, data = get_json(server, "/api/search?q=ranking&folder=")  # empty means all folders
+    assert len(data["results"]) == 2
+
+
 def test_similar(server):
     status, data = get_json(server, "/api/similar?url=https%3A%2F%2Fsqlite.org%2Ffts5.html")
     assert status == 200
@@ -206,6 +219,8 @@ def test_server_never_writes_to_the_database(server, db_path):
     for path in [
         "/api/search?q=ranking",
         "/api/similar?url=https%3A%2F%2Fsqlite.org%2Ffts5.html",
+        "/api/folders",
+        "/api/search?q=ranking&folder=Dev",
         "/api/broken?all=1",
         "/api/stats",
     ]:

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `markfind serve`: a folder menu next to the search box limits results to one
+  folder and its subfolders, with a bookmark count for each folder. Arrow keys
+  move through the results, `Enter` opens one and `Shift+Enter` shows similar
+  bookmarks. New endpoint `GET /api/folders`; `/api/search` takes `folder`.
+- `markfind search --folder PATH`, and `Store.search(folder=...)` and
+  `Store.folders()` in the Python API.
+
 - `markfind serve`: each search result has a *Similar* button that shows the
   bookmarks most like it and the words they share, using the same matching as
   `markfind similar`. The view is kept in the page address, and *Back to

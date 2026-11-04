@@ -153,12 +153,12 @@ class Record:
         return "indexed" if self.fetched_at else "pending"
 
 
-def _folder_filter(folder: str | None) -> tuple[str, tuple[str, ...]]:
-    """A WHERE clause matching a folder and its subfolders, or nothing if no folder."""
+def _in_folder(folder: str | None, column: str = "folder") -> tuple[str, tuple[str, ...]]:
+    """An SQL condition matching a folder and its subfolders; always true if no folder."""
     if not folder:
-        return "", ()
+        return "1", ()
     escaped = folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return "WHERE folder = ? OR folder LIKE ? ESCAPE '\\'", (folder, escaped + "/%")
+    return f"({column} = ? OR {column} LIKE ? ESCAPE '\\')", (folder, escaped + "/%")
 
 
 def _now() -> str:
@@ -352,22 +352,28 @@ class Store:
         limit: int = 20,
         mark: tuple[str, str] = ("[", "]"),
         exclude: int | None = None,
+        folder: str | None = None,
     ) -> list[SearchResult]:
-        """Run an FTS5 query, best matches first, leaving out bookmark id ``exclude``."""
+        """Run an FTS5 query, best matches first.
+
+        ``exclude`` leaves out one bookmark id; ``folder`` keeps only that folder
+        and its subfolders.
+        """
         if not query.strip():
             return []
+        in_folder, folder_params = _in_folder(folder, "b.folder")
         try:
             rows = self.db.execute(
-                """
+                f"""
                 SELECT b.url, b.title, b.folder,
                        snippet(bookmarks_fts, 2, ?, ?, '...', 16)
                 FROM bookmarks_fts
                 JOIN bookmarks AS b ON b.id = bookmarks_fts.rowid
-                WHERE bookmarks_fts MATCH ? AND bookmarks_fts.rowid IS NOT ?
+                WHERE bookmarks_fts MATCH ? AND bookmarks_fts.rowid IS NOT ? AND {in_folder}
                 ORDER BY bm25(bookmarks_fts, ?, ?, ?, ?)
                 LIMIT ?
                 """,
-                (*mark, query, exclude, *RANK_WEIGHTS, limit),
+                (*mark, query, exclude, *folder_params, *RANK_WEIGHTS, limit),
             ).fetchall()
         except sqlite3.OperationalError as exc:
             message = str(exc)
@@ -462,18 +468,34 @@ class Store:
 
     def list_bookmarks(self, folder: str | None = None) -> list[tuple[str, str, str]]:
         """(url, title, folder) rows, optionally limited to a folder and its subfolders."""
-        where, params = _folder_filter(folder)
-        sql = f"SELECT url, title, folder FROM bookmarks {where} ORDER BY folder, title"
+        condition, params = _in_folder(folder)
+        sql = f"SELECT url, title, folder FROM bookmarks WHERE {condition} ORDER BY folder, title"
         return self.db.execute(sql, params).fetchall()
+
+    def folders(self) -> list[tuple[str, int]]:
+        """Every folder path, parents included, with how many bookmarks it holds.
+
+        A folder's count includes its subfolders. Sorted as a tree: each folder
+        right before its subfolders.
+        """
+        counts: Counter[str] = Counter()
+        rows = self.db.execute(
+            "SELECT folder, count(*) FROM bookmarks WHERE folder != '' GROUP BY folder"
+        )
+        for folder, n in rows:
+            parts = folder.split("/")
+            for depth in range(1, len(parts) + 1):
+                counts["/".join(parts[:depth])] += n
+        return sorted(counts.items(), key=lambda item: item[0].split("/"))
 
     def records(self, folder: str | None = None) -> list[Record]:
         """Every bookmark, or one folder and its subfolders, ordered by folder and title."""
-        where, params = _folder_filter(folder)
+        condition, params = _in_folder(folder)
         rows = self.db.execute(
             f"""
             SELECT url, title, folder, added_at, fetched_at,
                    CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END
-            FROM bookmarks {where}
+            FROM bookmarks WHERE {condition}
             ORDER BY folder, title, url
             """,
             params,

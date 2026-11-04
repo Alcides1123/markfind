@@ -75,6 +75,7 @@ async function loadStats() {
 let searchTimer = null;
 let searchController = null;
 let similarTo = null; // URL whose similar bookmarks are shown, or null in normal search
+let selected = -1; // index of the result picked with the arrow keys, or -1
 
 // Keep the view in the address bar, so it can be reloaded or bookmarked.
 function updateAddress() {
@@ -82,6 +83,7 @@ function updateAddress() {
   const q = $("q").value.trim();
   if (q) params.set("q", q);
   if ($("raw").checked) params.set("raw", "1");
+  if ($("folder").value) params.set("folder", $("folder").value);
   if (similarTo) params.set("similar", similarTo);
   const qs = params.toString();
   history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
@@ -98,6 +100,7 @@ function similarButton(url) {
 function renderResults(results) {
   const list = $("results");
   list.replaceChildren();
+  selected = -1;
   for (const r of results) {
     const item = el("li", "result");
     const title = link(r.url, r.title || r.url);
@@ -126,6 +129,7 @@ async function runSearch() {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (raw) params.set("raw", "1");
+  if ($("folder").value) params.set("folder", $("folder").value);
   const qs = params.toString();
   updateAddress();
 
@@ -157,6 +161,69 @@ function scheduleSearch() {
   leaveSimilar();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(runSearch, DEBOUNCE_MS);
+}
+
+// --- folders ---------------------------------------------------------------
+
+const NBSP = String.fromCharCode(160);
+
+// Fill the folder menu as an indented tree. `wanted` is the folder to select
+// (from the page address); it's kept even if it no longer has bookmarks.
+async function loadFolders(wanted) {
+  const menu = $("folder");
+  try {
+    const data = await getJSON("/api/folders");
+    for (const f of data.folders) {
+      const parts = f.path.split("/");
+      const label = `${NBSP.repeat(3 * (parts.length - 1))}${parts[parts.length - 1]} (${f.count})`;
+      const option = el("option", null, label);
+      option.value = f.path;
+      option.title = f.path;
+      menu.append(option);
+    }
+  } catch {
+    // Searching still works without the menu.
+  }
+  if (wanted) {
+    if (![...menu.options].some((o) => o.value === wanted)) {
+      const option = el("option", null, wanted);
+      option.value = wanted;
+      menu.append(option);
+    }
+    menu.value = wanted;
+  }
+}
+
+// --- keyboard navigation through results -------------------------------------
+
+function resultItems() {
+  return [...$("results").querySelectorAll(".result")];
+}
+
+// Highlight result `index`, or none if it's below 0.
+function select(index) {
+  const items = resultItems();
+  selected = items.length ? Math.min(index, items.length - 1) : -1;
+  items.forEach((item, i) => {
+    item.classList.toggle("selected", i === selected);
+    if (i === selected) item.setAttribute("aria-current", "true");
+    else item.removeAttribute("aria-current");
+  });
+  const item = items[selected];
+  if (item && item.scrollIntoView) item.scrollIntoView({ block: "nearest" });
+}
+
+// Arrow keys move through results; Enter opens one, Shift+Enter finds similar.
+function navigate(event) {
+  if ($("view-search").hidden) return false;
+  if (event.key === "ArrowDown") select(selected + 1);
+  else if (event.key === "ArrowUp") select(selected - 1);
+  else if (event.key === "Enter" && selected >= 0) {
+    const item = resultItems()[selected];
+    const target = event.shiftKey ? item.querySelector("button.similar") : item.querySelector("a.title");
+    if (target) target.click();
+  } else return false;
+  return true;
 }
 
 // --- similar bookmarks -------------------------------------------------------
@@ -271,6 +338,10 @@ function init() {
     leaveSimilar();
     runSearch();
   });
+  $("folder").addEventListener("change", () => {
+    leaveSimilar();
+    runSearch();
+  });
   $("back").addEventListener("click", () => {
     leaveSimilar();
     runSearch();
@@ -282,6 +353,14 @@ function init() {
 
   document.addEventListener("keydown", (event) => {
     const typing = event.target instanceof HTMLInputElement;
+    // Other form controls (the folder menu, checkboxes) keep their own keys.
+    const inOtherControl =
+      event.target !== $("q") &&
+      (typing || event.target instanceof HTMLSelectElement || event.target instanceof HTMLButtonElement);
+    if (!inOtherControl && navigate(event)) {
+      event.preventDefault();
+      return;
+    }
     if (event.key === "/" && !typing) {
       event.preventDefault();
       showView("search");
@@ -294,8 +373,11 @@ function init() {
 
   loadStats();
   $("q").focus();
-  if (params.get("similar")) showSimilar(params.get("similar"));
-  else if ($("q").value) runSearch();
+  // The folder must be in the menu before the first search reads it.
+  loadFolders(params.get("folder")).then(() => {
+    if (params.get("similar")) showSimilar(params.get("similar"));
+    else if ($("q").value) runSearch();
+  });
 }
 
 document.addEventListener("DOMContentLoaded", init);

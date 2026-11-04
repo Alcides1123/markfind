@@ -142,6 +142,7 @@ class _Handler(BaseHTTPRequestHandler):
         routes = {
             "/api/search": self._search,
             "/api/similar": self._similar,
+            "/api/folders": self._folders,
             "/api/broken": self._broken,
             "/api/stats": self._stats,
         }
@@ -166,11 +167,18 @@ class _Handler(BaseHTTPRequestHandler):
         query = text if raw else to_fts_query(text)
         with self._store() as store:
             try:
-                results = store.search(query, limit=limit, mark=MARK)
+                results = store.search(
+                    query, limit=limit, mark=MARK, folder=params.get("folder") or None
+                )
             except QueryError as exc:
                 self._send_json({"error": f"invalid query: {exc}"}, HTTPStatus.BAD_REQUEST)
                 return
         self._send_json({"query": text, "results": [_result(r) for r in results]})
+
+    def _folders(self, params: dict[str, str]) -> None:
+        with self._store() as store:
+            folders = store.folders()
+        self._send_json({"folders": [{"path": path, "count": n} for path, n in folders]})
 
     def _similar(self, params: dict[str, str]) -> None:
         url = params.get("url", "")
