@@ -163,9 +163,8 @@ def _fetch(store: Store, pending: list[tuple[int, str]], args: argparse.Namespac
 def cmd_search(store: Store, args: argparse.Namespace) -> int:
     text = " ".join(args.query)
     query = text if args.raw else to_fts_query(text)
-    mark = ("\033[1m", "\033[0m") if sys.stdout.isatty() else ("[", "]")
     try:
-        results = store.search(query, limit=args.limit, mark=mark)
+        results = store.search(query, limit=args.limit, mark=_mark())
     except QueryError as exc:
         print(f"error: invalid query: {exc}", file=sys.stderr)
         return 2
@@ -173,6 +172,37 @@ def cmd_search(store: Store, args: argparse.Namespace) -> int:
     if not results:
         print("no matches")
         return 1
+    _print_results(results)
+    return 0
+
+
+def cmd_similar(store: Store, args: argparse.Namespace) -> int:
+    try:
+        found = store.similar(args.url, limit=args.limit, mark=_mark())
+    except KeyError:
+        print(
+            f"error: {args.url} is not in markfind; copy the URL from"
+            " 'markfind search' or 'markfind list'",
+            file=sys.stderr,
+        )
+        return 2
+
+    print(f"Similar to: {found.title or args.url}")
+    if not found.results:
+        print("no similar bookmarks")
+        return 1
+    print(f"based on: {', '.join(found.keywords)}")
+    print()
+    _print_results(found.results)
+    return 0
+
+
+def _mark() -> tuple[str, str]:
+    """How to highlight matched words: bold on a terminal, [brackets] otherwise."""
+    return ("\033[1m", "\033[0m") if sys.stdout.isatty() else ("[", "]")
+
+
+def _print_results(results: list) -> None:
     for n, r in enumerate(results, 1):
         print(f"{n}. {r.title or r.url}")
         print(f"   {r.url}")
@@ -180,7 +210,6 @@ def cmd_search(store: Store, args: argparse.Namespace) -> int:
             print(f"   folder: {r.folder}")
         if r.snippet:
             print(f"   {r.snippet}")
-    return 0
 
 
 def cmd_list(store: Store, args: argparse.Namespace) -> int:
@@ -326,6 +355,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
     )
     p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser(
+        "similar",
+        help="find bookmarks like a given one",
+        description=(
+            "List the bookmarks most like the one with this URL, based on the words"
+            " that make its page distinctive."
+        ),
+    )
+    p.add_argument("url", help="the bookmark's URL, exactly as 'markfind list' shows it")
+    p.add_argument("-n", "--limit", type=int, default=10)
+    p.set_defaults(func=cmd_similar)
 
     p = sub.add_parser("list", help="list bookmarks")
     p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")

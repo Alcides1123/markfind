@@ -32,6 +32,12 @@
 - [ ] Duplicate detection (same URL after normalization, or same page text)
 - [ ] Export search results to Markdown / HTML / JSON
 
+## 0.5 — Discovery
+
+- [x] "More like this": `markfind similar URL` (#15)
+- [ ] Web UI: a "similar" link on each search result
+- [ ] Group bookmarks into topics automatically, using the same keywords
+
 ## Later
 
 - [x] Small local web UI (`markfind serve`) with search-as-you-type (#11)

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import math
+import re
 import sqlite3
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -56,6 +59,28 @@ SCHEMA_VERSION = len(MIGRATIONS)
 # bm25() weights, in bookmarks_fts column order: title, url, body, folder.
 RANK_WEIGHTS = (5.0, 1.0, 2.0, 1.0)
 
+# Must match the bookmarks_fts tokenizer, so words stem the same way.
+_TOKENIZER = "porter unicode61 remove_diacritics 2"
+
+# similar(): words of 3+ letters or digits that start with a letter.
+_WORD = re.compile(r"[^\W\d_][^\W_]{2,}")
+SIMILAR_KEYWORDS = 15
+_SIMILAR_CANDIDATES = 300  # most frequent stems whose rarity is looked up
+_TITLE_WEIGHT = 3  # a word in the title counts as this many in the body
+# IDF alone can't tell that "the" is noise in a small collection.
+_STOPWORDS = frozenset(
+    """
+    about above after again against all also and any are because been before being
+    below between both but can could did does doing down during each few for from
+    further had has have having her here hers herself him himself his how into its
+    itself just more most myself nor not now off once only other our ours ourselves
+    out over own same she should some such than that the their theirs them
+    themselves then there these they this those through too under until very was
+    were what when where which while who whom why will with would you your yours
+    yourself yourselves
+    """.split()
+)
+
 
 class QueryError(Exception):
     """The search query is not valid FTS5 syntax."""
@@ -67,6 +92,13 @@ class SearchResult:
     title: str
     folder: str
     snippet: str
+
+
+@dataclass(frozen=True)
+class Similar:
+    title: str  # of the bookmark the others are similar to
+    keywords: list[str]  # the words the match was based on, most telling first
+    results: list[SearchResult]
 
 
 @dataclass(frozen=True)
@@ -273,8 +305,13 @@ class Store:
         return [Failure(*row) for row in self.db.execute(sql, params)]
 
     def search(
-        self, query: str, limit: int = 20, mark: tuple[str, str] = ("[", "]")
+        self,
+        query: str,
+        limit: int = 20,
+        mark: tuple[str, str] = ("[", "]"),
+        exclude: int | None = None,
     ) -> list[SearchResult]:
+        """Run an FTS5 query, best matches first, leaving out bookmark id ``exclude``."""
         if not query.strip():
             return []
         try:
@@ -284,11 +321,11 @@ class Store:
                        snippet(bookmarks_fts, 2, ?, ?, '...', 16)
                 FROM bookmarks_fts
                 JOIN bookmarks AS b ON b.id = bookmarks_fts.rowid
-                WHERE bookmarks_fts MATCH ?
+                WHERE bookmarks_fts MATCH ? AND bookmarks_fts.rowid IS NOT ?
                 ORDER BY bm25(bookmarks_fts, ?, ?, ?, ?)
                 LIMIT ?
                 """,
-                (*mark, query, *RANK_WEIGHTS, limit),
+                (*mark, query, exclude, *RANK_WEIGHTS, limit),
             ).fetchall()
         except sqlite3.OperationalError as exc:
             message = str(exc)
@@ -296,6 +333,90 @@ class Store:
                 raise QueryError(message) from exc
             raise
         return [SearchResult(*row) for row in rows]
+
+    def similar(self, url: str, limit: int = 10, mark: tuple[str, str] = ("[", "]")) -> Similar:
+        """Bookmarks most like the one with this URL: "more like this".
+
+        Raises KeyError if the URL isn't in the database.
+        """
+        row = self.db.execute(
+            """
+            SELECT b.id, b.title, f.body FROM bookmarks AS b
+            LEFT JOIN bookmarks_fts AS f ON f.rowid = b.id
+            WHERE b.url = ?
+            """,
+            (url,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(url)
+        id_, title, body = row
+        keywords = self._keywords(title, body or "")
+        if not keywords:
+            return Similar(title, [], [])
+        query = " OR ".join(to_fts_query(word) for word in keywords)
+        return Similar(title, keywords, self.search(query, limit=limit, mark=mark, exclude=id_))
+
+    def _keywords(self, title: str, body: str) -> list[str]:
+        """The words that best characterise a page, by TF-IDF over the index."""
+        weights: Counter[str] = Counter()
+        for word in _WORD.findall(title.lower()):
+            weights[word] += _TITLE_WEIGHT
+        for word in _WORD.findall(body.lower()):
+            weights[word] += 1
+        for word in _STOPWORDS & weights.keys():
+            del weights[word]
+        if not weights:
+            return []
+
+        # Group words by stem (index, indexes, indexing), using the index's
+        # own tokenizer, and name each group by its most frequent word.
+        groups: dict[str, list[str]] = {}
+        for stem, word in self._stem(list(weights)):
+            groups.setdefault(stem, []).append(word)
+        stems = sorted(groups, key=lambda stem: -sum(weights[w] for w in groups[stem]))
+
+        self.db.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS temp.index_vocab"
+            " USING fts5vocab(main, bookmarks_fts, row)"
+        )
+        count = self.db.execute("SELECT count(*) FROM bookmarks").fetchone()[0]
+        scored = []
+        # Each lookup costs time, and a word used once or twice on a long page
+        # rarely outscores its frequent words, so only the most frequent count.
+        for stem in stems[:_SIMILAR_CANDIDATES]:
+            row = self.db.execute(
+                "SELECT doc FROM temp.index_vocab WHERE term = ?", (stem,)
+            ).fetchone()
+            docs = row[0] if row else 0
+            # In one other bookmark at least, or it can't match anything;
+            # in every bookmark, and it can't tell them apart.
+            if 2 <= docs < count:
+                words = groups[stem]
+                weight = sum(weights[w] for w in words)
+                word = min(words, key=lambda w: (-weights[w], w))
+                scored.append((weight * math.log(count / docs), word))
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [word for _, word in scored[:SIMILAR_KEYWORDS]]
+
+    def _stem(self, words: list[str]) -> list[tuple[str, str]]:
+        """(stem, word) pairs, stemmed exactly as the index stems them."""
+        self.db.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS temp.stem_words"
+            f" USING fts5(word, tokenize = '{_TOKENIZER}')"
+        )
+        self.db.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS temp.stem_vocab"
+            " USING fts5vocab(stem_words, instance)"
+        )
+        with self.db:
+            self.db.execute("DELETE FROM temp.stem_words")
+            self.db.executemany(
+                "INSERT INTO temp.stem_words (rowid, word) VALUES (?, ?)", enumerate(words)
+            )
+            rows = self.db.execute(
+                "SELECT doc, term FROM temp.stem_vocab WHERE offset = 0"
+            ).fetchall()
+        return [(term, words[doc]) for doc, term in rows]
 
     def list_bookmarks(self, folder: str | None = None) -> list[tuple[str, str, str]]:
         """(url, title, folder) rows, optionally limited to a folder and its subfolders."""

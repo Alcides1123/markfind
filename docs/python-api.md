@@ -87,7 +87,8 @@ thread.
 | `pending(refetch=False, older_than=None, failed=False) -> list[(id, url)]` | Bookmarks to fetch: never-fetched ones, plus everything (`refetch`), those fetched before `now - older_than` (a `timedelta`), or failed ones (`failed`). |
 | `set_page(id, text, page_title="")` | Store fetched text and clear any error. `page_title` is used only if the bookmark has no title. |
 | `set_error(id, message, kind="other")` | Record a failed fetch. |
-| `search(query, limit=20, mark=("[", "]")) -> list[SearchResult]` | Run an FTS5 query. `mark` wraps matched words in the snippet. Raises `QueryError` for invalid syntax. |
+| `search(query, limit=20, mark=("[", "]"), exclude=None) -> list[SearchResult]` | Run an FTS5 query. `mark` wraps matched words in the snippet; `exclude` leaves out one bookmark id. Raises `QueryError` for invalid syntax. |
+| `similar(url, limit=10, mark=("[", "]")) -> Similar` | Bookmarks most like this one (see [`markfind similar`](cli.md#similar)). Raises `KeyError` if the URL isn't in the database. Works on read-only connections. |
 | `failures(kinds=None) -> list[Failure]` | Bookmarks whose last fetch failed, optionally only the given kinds. |
 | `list_bookmarks(folder=None) -> list[(url, title, folder)]` | All bookmarks, or one folder and its subfolders. |
 | `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`. |
@@ -95,6 +96,8 @@ thread.
 Result types (frozen dataclasses):
 
 - **`SearchResult`**: `url`, `title`, `folder`, `snippet`
+- **`Similar`**: `title` (of the bookmark you asked about), `keywords` (most
+  telling first), `results` (`list[SearchResult]`)
 - **`Failure`**: `url`, `title`, `folder`, `kind`, `error`, `fetched_at`
 
 **`to_fts_query(text)`** turns plain words into a safe FTS5 query in which
