@@ -505,10 +505,17 @@ The page has two views:
   each result shows its folder and URL and opens in a new tab. Tick *Advanced
   syntax* to use the [`--raw` query syntax](#raw-queries---raw). The query is
   kept in the page address, so you can bookmark or share a search.
+- **Similar:** each result has a *Similar* button that shows the bookmarks
+  most like it, the same as [`markfind similar`](#similar). The words the
+  match was based on are listed at the top. The results have *Similar*
+  buttons too, so you can keep exploring; *Back to search*, typing a new
+  search or `Esc` returns to your search. This view is kept in the page
+  address too.
 - **Dead links:** the [`broken`](#broken) report grouped by kind, with a
   switch to show every failure.
 
-Keyboard: `/` jumps to the search box and `Esc` clears it.
+Keyboard: `/` jumps to the search box and `Esc` clears it (or first leaves
+the *Similar* view).
 
 The interface is **read-only**. It never changes your bookmarks, so it's safe
 to keep it open while `markfind import` or `markfind fetch` runs; new results

@@ -95,6 +95,32 @@ def test_search_options_and_errors(server):
     assert data["error"].startswith("invalid query")
 
 
+def test_similar(server):
+    status, data = get_json(server, "/api/similar?url=https%3A%2F%2Fsqlite.org%2Ffts5.html")
+    assert status == 200
+    assert data["url"] == "https://sqlite.org/fts5.html"
+    assert data["title"] == "SQLite FTS5"
+    # "ranking" and "search" are the words the two indexed pages share.
+    assert set(data["keywords"]) == {"ranking", "search"}
+    # The bookmark itself is left out; the other page is returned as data, with marks.
+    (hit,) = data["results"]
+    assert hit["url"] == "https://evil.example/"
+    assert hit["title"] == "<img src=x onerror=alert(1)>"
+    assert f"{MARK[0]}ranking{MARK[1]}" in hit["snippet"]
+
+
+def test_similar_errors_and_limit(server):
+    status, data = get_json(server, "/api/similar")
+    assert (status, data) == (400, {"error": "missing url"})
+    status, data = get_json(server, "/api/similar?url=https%3A%2F%2Fmissing.example%2F")
+    assert status == 404 and "isn't in markfind" in data["error"]
+    # Nothing in common with any other bookmark: an empty answer, not an error.
+    status, data = get_json(server, "/api/similar?url=https%3A%2F%2Fpending.example%2F")
+    assert status == 200 and data["results"] == [] and data["keywords"] == []
+    _, data = get_json(server, "/api/similar?url=https%3A%2F%2Fsqlite.org%2Ffts5.html&limit=0")
+    assert len(data["results"]) == 1  # limit is clamped to at least 1
+
+
 def test_broken_and_stats(server):
     status, data = get_json(server, "/api/broken")
     assert status == 200
@@ -177,7 +203,12 @@ def test_post_is_not_supported(server):
 
 def test_server_never_writes_to_the_database(server, db_path):
     before = db_path.read_bytes()
-    for path in ["/api/search?q=ranking", "/api/broken?all=1", "/api/stats"]:
+    for path in [
+        "/api/search?q=ranking",
+        "/api/similar?url=https%3A%2F%2Fsqlite.org%2Ffts5.html",
+        "/api/broken?all=1",
+        "/api/stats",
+    ]:
         request(server, path)
     assert db_path.read_bytes() == before
 

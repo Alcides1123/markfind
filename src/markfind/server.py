@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
 from .fetch import DEAD_KINDS
-from .store import QueryError, Store, to_fts_query
+from .store import QueryError, SearchResult, Store, to_fts_query
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8737
@@ -61,6 +61,18 @@ def is_loopback(host: str) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
+
+
+def _limit(params: dict[str, str], default: int = 30) -> int:
+    """The ``limit`` parameter, clamped to 1..MAX_LIMIT."""
+    try:
+        return min(max(int(params.get("limit", default)), 1), MAX_LIMIT)
+    except ValueError:
+        return default
+
+
+def _result(r: SearchResult) -> dict[str, str]:
+    return {"url": r.url, "title": r.title, "folder": r.folder, "snippet": r.snippet}
 
 
 def _load_static() -> dict[str, tuple[bytes, str]]:
@@ -129,6 +141,7 @@ class _Handler(BaseHTTPRequestHandler):
         params = {k: v[-1] for k, v in parse_qs(url.query).items()}
         routes = {
             "/api/search": self._search,
+            "/api/similar": self._similar,
             "/api/broken": self._broken,
             "/api/stats": self._stats,
         }
@@ -145,10 +158,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _search(self, params: dict[str, str]) -> None:
         text = params.get("q", "").strip()
-        try:
-            limit = min(max(int(params.get("limit", "30")), 1), MAX_LIMIT)
-        except ValueError:
-            limit = 30
+        limit = _limit(params)
         raw = params.get("raw") == "1"
         if not text:
             self._send_json({"query": text, "results": []})
@@ -160,13 +170,25 @@ class _Handler(BaseHTTPRequestHandler):
             except QueryError as exc:
                 self._send_json({"error": f"invalid query: {exc}"}, HTTPStatus.BAD_REQUEST)
                 return
+        self._send_json({"query": text, "results": [_result(r) for r in results]})
+
+    def _similar(self, params: dict[str, str]) -> None:
+        url = params.get("url", "")
+        if not url:
+            self._send_json({"error": "missing url"}, HTTPStatus.BAD_REQUEST)
+            return
+        with self._store() as store:
+            try:
+                found = store.similar(url, limit=_limit(params), mark=MARK)
+            except KeyError:
+                self._send_json({"error": "this bookmark isn't in markfind"}, HTTPStatus.NOT_FOUND)
+                return
         self._send_json(
             {
-                "query": text,
-                "results": [
-                    {"url": r.url, "title": r.title, "folder": r.folder, "snippet": r.snippet}
-                    for r in results
-                ],
+                "url": url,
+                "title": found.title,
+                "keywords": found.keywords,
+                "results": [_result(r) for r in found.results],
             }
         )
 

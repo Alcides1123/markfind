@@ -74,6 +74,26 @@ async function loadStats() {
 
 let searchTimer = null;
 let searchController = null;
+let similarTo = null; // URL whose similar bookmarks are shown, or null in normal search
+
+// Keep the view in the address bar, so it can be reloaded or bookmarked.
+function updateAddress() {
+  const params = new URLSearchParams();
+  const q = $("q").value.trim();
+  if (q) params.set("q", q);
+  if ($("raw").checked) params.set("raw", "1");
+  if (similarTo) params.set("similar", similarTo);
+  const qs = params.toString();
+  history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
+}
+
+function similarButton(url) {
+  const button = el("button", "similar", "Similar");
+  button.type = "button";
+  button.title = "Find bookmarks like this one";
+  button.addEventListener("click", () => showSimilar(url));
+  return button;
+}
 
 function renderResults(results) {
   const list = $("results");
@@ -87,6 +107,7 @@ function renderResults(results) {
     const meta = el("div", "meta");
     meta.append(el("span", "url", r.url));
     if (r.folder) meta.append(el("span", "folder", r.folder));
+    meta.append(similarButton(r.url));
     item.append(meta);
 
     if (r.snippet) {
@@ -106,7 +127,7 @@ async function runSearch() {
   if (q) params.set("q", q);
   if (raw) params.set("raw", "1");
   const qs = params.toString();
-  history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
+  updateAddress();
 
   if (searchController) searchController.abort();
   if (!q) {
@@ -133,8 +154,53 @@ async function runSearch() {
 }
 
 function scheduleSearch() {
+  leaveSimilar();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(runSearch, DEBOUNCE_MS);
+}
+
+// --- similar bookmarks -------------------------------------------------------
+
+async function showSimilar(url) {
+  similarTo = url;
+  updateAddress();
+  clearTimeout(searchTimer);
+  if (searchController) searchController.abort();
+  searchController = new AbortController();
+
+  $("similar-header").hidden = false;
+  const title = $("similar-title");
+  const keywords = $("similar-keywords");
+  const status = $("search-status");
+  title.textContent = "Finding similar bookmarks…";
+  keywords.textContent = "";
+  try {
+    const data = await getJSON(
+      `/api/similar?url=${encodeURIComponent(url)}`,
+      searchController.signal,
+    );
+    title.replaceChildren("Similar to: ", link(data.url, data.title || data.url));
+    keywords.textContent = data.keywords.length ? `Based on: ${data.keywords.join(", ")}` : "";
+    renderResults(data.results);
+    status.classList.remove("error");
+    status.textContent =
+      data.results.length === 0 ? "No similar bookmarks." :
+      data.results.length === 1 ? "1 similar bookmark" : `${data.results.length} similar bookmarks`;
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    title.textContent = "Similar bookmarks";
+    renderResults([]);
+    status.classList.add("error");
+    status.textContent = err.message;
+  }
+}
+
+// Back to normal search. Returns whether a similar view was open.
+function leaveSimilar() {
+  if (!similarTo) return false;
+  similarTo = null;
+  $("similar-header").hidden = true;
+  return true;
 }
 
 // --- dead links --------------------------------------------------------------
@@ -201,7 +267,15 @@ function init() {
   $("raw").checked = params.get("raw") === "1";
 
   $("q").addEventListener("input", scheduleSearch);
-  $("raw").addEventListener("change", runSearch);
+  $("raw").addEventListener("change", () => {
+    leaveSimilar();
+    runSearch();
+  });
+  $("back").addEventListener("click", () => {
+    leaveSimilar();
+    runSearch();
+    $("q").focus();
+  });
   $("show-all").addEventListener("change", loadBroken);
   $("tab-search").addEventListener("click", () => showView("search"));
   $("tab-broken").addEventListener("click", () => showView("broken"));
@@ -212,14 +286,16 @@ function init() {
       event.preventDefault();
       showView("search");
     } else if (event.key === "Escape" && event.target === $("q")) {
-      $("q").value = "";
+      // First Esc leaves the similar view; the next one clears the search.
+      if (!leaveSimilar()) $("q").value = "";
       runSearch();
     }
   });
 
   loadStats();
   $("q").focus();
-  if ($("q").value) runSearch();
+  if (params.get("similar")) showSimilar(params.get("similar"));
+  else if ($("q").value) runSearch();
 }
 
 document.addEventListener("DOMContentLoaded", init);
