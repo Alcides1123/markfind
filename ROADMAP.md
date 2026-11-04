@@ -31,7 +31,8 @@
 - [ ] Remove dead bookmarks from the index (`markfind broken --delete`)
 - [x] Duplicate detection (same URL after normalization, or same page text) (#17)
 - [ ] Near-duplicate pages (mostly the same text, e.g. a page with a changed footer)
-- [ ] Export search results to Markdown / HTML / JSON
+- [x] Export search results to Markdown / HTML / JSON, and a cleaned-up
+      bookmark file to re-import into the browser (#19)
 
 ## 0.5 — Discovery
 
@@ -45,4 +46,6 @@
 - [ ] Web UI: filter by folder, keyboard navigation through results
 - [ ] User tags and notes, searchable alongside page text
 - [ ] Save an archived copy of each page so results survive link rot
-- [ ] Publish to PyPI and set up CI (GitHub Actions, tests on Windows/macOS/Linux)
+- [x] CI: GitHub Actions with lint, tests on Linux and Windows, and a package build (#3)
+- [ ] Publish to PyPI
+- [ ] Run CI on macOS too (dropped in #5 because jobs never got a runner)

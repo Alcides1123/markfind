@@ -9,8 +9,10 @@ markfind [--db PATH] COMMAND [options]
 | `--db PATH` | Database file. Default: `$MARKFIND_DB`, or `~/.markfind.sqlite`. Created if missing. |
 | `--version` | Print the version and exit. |
 
-Commands: [`import`](#import) · [`fetch`](#fetch) · [`search`](#search) ·
-[`list`](#list) · [`broken`](#broken) · [`stats`](#stats) · [`serve`](#serve)
+Commands: [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
+[`search`](#search) · [`similar`](#similar) · [`list`](#list) ·
+[`duplicates`](#duplicates) · [`broken`](#broken) · [`export`](#export) ·
+[`stats`](#stats) · [`serve`](#serve)
 
 ---
 
