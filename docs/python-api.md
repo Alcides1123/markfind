@@ -133,7 +133,8 @@ canonical_url("http://www.example.com/a/?utm_source=x#top")  # 'example.com/a'
 | Name | Description |
 |---|---|
 | `fetch_page(url, timeout=10.0, max_bytes=2_000_000) -> Page` | Download one page and extract its text. Raises `urllib` errors, `TimeoutError`, `UnsupportedContentError`, or `EmptyPageError` if the page has no text. |
-| `fetch_many(items, fetch=fetch_page, workers=8, timeout=10.0, limiter=None)` | Fetch `(id, url)` pairs concurrently. Yields `(id, url, Page \| Exception)` as each one finishes. Never raises for a single failed page. |
+| `fetch_many(items, fetch=fetch_page, workers=8, timeout=10.0, limiter=None, max_retry_wait=60.0, retries=2)` | Fetch `(id, url)` pairs concurrently. Yields `(id, url, Page \| Exception)` as each one finishes. Never raises for a single failed page. Retries HTTP 429 / 503 after the wait the server asks for. |
+| `retry_wait(exc) -> float \| None` | Seconds to wait before retrying a failure (from `Retry-After`, default 5), or `None` if retrying won't help. |
 | `HostLimiter(delay=1.0)` | One request at a time per host, at least `delay` seconds apart. Pass it to `fetch_many` as `limiter=`. |
 | `classify_error(exc) -> (kind, message)` | Map a fetch exception to a failure kind and a readable message. |
 | `ERROR_KINDS`, `DEAD_KINDS` | All failure kinds, and the ones treated as dead (`gone`, `dns`). |

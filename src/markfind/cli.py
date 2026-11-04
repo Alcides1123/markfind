@@ -15,6 +15,7 @@ from .extract import Page
 from .fetch import (
     DEAD_KINDS,
     ERROR_KINDS,
+    MAX_RETRY_WAIT,
     HostLimiter,
     classify_error,
     fetch_many,
@@ -173,6 +174,7 @@ def _fetch(store: Store, pending: list[tuple[int, str]], args: argparse.Namespac
         workers=args.workers,
         timeout=args.timeout,
         limiter=HostLimiter(delay=args.delay),
+        max_retry_wait=args.max_retry_wait,
     )
     for done, (id_, url, result) in enumerate(results, 1):
         if isinstance(result, Page):
@@ -354,6 +356,14 @@ def _add_fetch_options(p: argparse.ArgumentParser) -> None:
         type=float,
         default=1.0,
         help="minimum seconds between requests to the same site (default: 1, 0 disables)",
+    )
+    p.add_argument(
+        "--max-retry-wait",
+        type=float,
+        default=MAX_RETRY_WAIT,
+        metavar="S",
+        help="when a site says 'too many requests' (HTTP 429/503), wait up to S seconds"
+        f" and retry (default: {MAX_RETRY_WAIT:.0f}, 0 disables)",
     )
     p.add_argument("-q", "--quiet", action="store_true", help="only print the summary")
 

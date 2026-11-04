@@ -61,7 +61,7 @@ markfind import ~/.mozilla/firefox/abcd1234.default-release/places.sqlite
 
 ```text
 markfind sync [--list] [--browser NAME] [--prune] [--no-fetch]
-              [--workers N] [--timeout S] [--delay S] [-q]
+              [--workers N] [--timeout S] [--delay S] [--max-retry-wait S] [-q]
 ```
 
 Finds the bookmarks of every browser profile on this computer, imports them,
@@ -90,7 +90,7 @@ fetched 4, failed 0
 | `--browser NAME` | Only this browser: `chrome`, `edge`, `brave`, `vivaldi`, `chromium` or `firefox`. Repeat for several. |
 | `--prune` | Remove bookmarks that were deleted in the browser (see below). |
 | `--no-fetch` | Import only. |
-| `--workers`, `--timeout`, `--delay`, `-q` | As for [`fetch`](#fetch). With `-q`, pruned bookmarks are counted but not listed. |
+| `--workers`, `--timeout`, `--delay`, `--max-retry-wait`, `-q` | As for [`fetch`](#fetch). With `-q`, pruned bookmarks are counted but not listed. |
 
 Where it looks:
 
@@ -134,7 +134,7 @@ and [`examples/refresh.ps1`](../examples/refresh.ps1); `markfind sync --prune
 
 ```text
 markfind fetch [--older-than AGE] [--failed] [--all]
-               [--workers N] [--timeout S] [--delay S] [-q]
+               [--workers N] [--timeout S] [--delay S] [--max-retry-wait S] [-q]
 ```
 
 Downloads bookmarked pages and indexes their text. By default it fetches only
@@ -148,6 +148,7 @@ bookmarks that have **never** been fetched.
 | `--workers N` | Parallel downloads (default 8). |
 | `--timeout S` | Seconds to wait for each page (default 10). |
 | `--delay S` | Minimum seconds between two requests to the same host (default 1; `0` disables). |
+| `--max-retry-wait S` | When a site answers "too many requests" (HTTP 429) or "unavailable" (503), wait as long as it asks, up to `S` seconds, and retry, at most twice (default 60; `0` disables). |
 | `-q`, `--quiet` | Print only the summary, not one line per page. |
 
 The options combine. For example, `--older-than 30d --failed` fetches new,
@@ -167,6 +168,14 @@ What gets indexed:
 
 If a bookmark has no title, the page's `<title>` is used.
 
+If a site answers "too many requests" (HTTP 429) or "unavailable" (503),
+markfind waits as long as the site's `Retry-After` header asks (5 seconds if
+it doesn't say) and tries again, at most twice. Meanwhile every other request
+to that site waits too. If the site asks for longer than `--max-retry-wait`,
+markfind records the failure straight away, with the wait the site asked for,
+rather than holding up the whole fetch. Bot-protection challenges (Cloudflare,
+Vercel) are never retried, because an automated client can't pass them.
+
 A page that downloads fine but has no text at all is recorded as an `empty`
 failure rather than as indexed. Most are web apps that draw everything with
 JavaScript, or pages that need a login. Their title, URL and folder are still
@@ -179,8 +188,8 @@ Every failure is recorded with a **kind**. [`broken`](#broken) and
 |---|---|---|
 | `gone` | HTTP 404 or 410 | yes |
 | `dns` | The host name doesn't exist | yes |
-| `blocked` | HTTP 401 or 403 (login required, bot protection) | no |
-| `server` | HTTP 429 or 5xx | no, try later |
+| `blocked` | HTTP 401 or 403 (login required, bot protection), or a bot-protection challenge page from Cloudflare or Vercel, whatever its status | no |
+| `server` | HTTP 429 or 5xx, still failing after any retries | no, try later |
 | `http` | Any other HTTP error status | maybe |
 | `timeout` | No response within `--timeout` | no, try later |
 | `connection` | Connection refused or reset | maybe |
