@@ -176,7 +176,7 @@ def test_migrates_version_1_database(tmp_path):
     db.close()
 
     with Store(path) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         # Bookmarks from before sources were recorded are left alone...
         assert store.prune("chrome", []) == []
         # ...until a sync claims them.

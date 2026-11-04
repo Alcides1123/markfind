@@ -167,6 +167,11 @@ What gets indexed:
 
 If a bookmark has no title, the page's `<title>` is used.
 
+A page that downloads fine but has no text at all is recorded as an `empty`
+failure rather than as indexed. Most are web apps that draw everything with
+JavaScript, or pages that need a login. Their title, URL and folder are still
+searchable.
+
 Every failure is recorded with a **kind**. [`broken`](#broken) and
 [`stats`](#stats) use these kinds.
 
@@ -181,6 +186,7 @@ Every failure is recorded with a **kind**. [`broken`](#broken) and
 | `connection` | Connection refused or reset | maybe |
 | `ssl` | Certificate or TLS failure | see [SSL certificate errors](../README.md#ssl-certificate-errors) |
 | `unsupported` | Not HTML or plain text | no |
+| `empty` | The page downloaded but has no text, usually an app drawn by JavaScript or a page behind a login | no |
 | `other` | Anything else | — |
 
 ---

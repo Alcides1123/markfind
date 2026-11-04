@@ -241,6 +241,7 @@ The database stores its schema version in `PRAGMA user_version`. When
 | 0 | markfind 0.1.0 |
 | 1 | Adds `bookmarks.error_kind`. Existing failures get the kind `other`. |
 | 2 | Adds `bookmarks.source`. Existing bookmarks get no source, so they're never pruned until a later import records one. |
+| 3 | No schema change. Pages fetched with no text, which used to count as indexed, are marked as `empty` failures. |
 
 See [Development](development.md#changing-the-database-schema) for how to add
 a migration.

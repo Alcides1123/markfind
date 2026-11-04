@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .duplicates import Group, find_duplicates
+from .fetch import EMPTY_MESSAGE
 from .importers import Bookmark
 
 SCHEMA = """
@@ -51,10 +52,23 @@ def _add_source(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE bookmarks ADD COLUMN source TEXT")
 
 
+def _mark_empty_pages(db: sqlite3.Connection) -> None:
+    # Pages fetched with no text used to count as indexed; the "empty" kind
+    # is what fetch records for them now.
+    db.execute(
+        """
+        UPDATE bookmarks SET fetch_error = ?, error_kind = 'empty'
+        WHERE fetched_at IS NOT NULL AND fetch_error IS NULL
+          AND id IN (SELECT rowid FROM bookmarks_fts WHERE trim(coalesce(body, '')) = '')
+        """,
+        (EMPTY_MESSAGE,),
+    )
+
+
 # Applied in order to databases whose PRAGMA user_version is lower than their
 # position + 1; SCHEMA always describes the latest version, so every migration
 # must also be a no-op on a freshly created database.
-MIGRATIONS = [_add_error_kind, _add_source]
+MIGRATIONS = [_add_error_kind, _add_source, _mark_empty_pages]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 # bm25() weights, in bookmarks_fts column order: title, url, body, folder.

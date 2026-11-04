@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Pages that download fine but have no text (apps drawn by JavaScript, pages
+  behind a login) are now an `empty` failure instead of counting as indexed,
+  so `stats` shows what's really searchable. See them with
+  `markfind broken --kind empty`; `fetch --failed` retries them. Existing
+  databases are updated automatically (schema version 3) (#24).
+
 - Fix: pages served without a `Content-Type` header, or HTML labelled
   `text/plain`, were indexed as raw HTML source (`<!DOCTYPE ...> <script>`...).
   markfind now recognises HTML from the page itself, skips binary data sent

@@ -33,6 +33,12 @@ class UnsupportedContentError(FetchError):
     pass
 
 
+class EmptyPageError(FetchError):
+    """The page downloaded fine but has no text, e.g. an app built by JavaScript."""
+
+
+EMPTY_MESSAGE = "no text found; the page may need JavaScript or a login"
+
 # Error kinds that almost certainly mean the bookmark is dead for good.
 DEAD_KINDS = ("gone", "dns")
 
@@ -46,6 +52,7 @@ ERROR_KINDS = (
     "connection",
     "ssl",
     "unsupported",
+    "empty",
     "other",
 )
 
@@ -69,6 +76,8 @@ def classify_error(exc: BaseException) -> tuple[str, str]:
 
     if isinstance(cause, UnsupportedContentError):
         return "unsupported", str(cause)
+    if isinstance(cause, EmptyPageError):
+        return "empty", str(cause)
     if isinstance(cause, socket.gaierror):
         return "dns", "host not found"
     if isinstance(cause, ssl.SSLCertVerificationError):
@@ -129,11 +138,15 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         body = raw.decode(charset, errors="replace")
     except LookupError:
         body = raw.decode("utf-8", errors="replace")
-    body = body.removeprefix("﻿")  # a UTF-8 byte-order mark isn't text
+    body = body.removeprefix("\ufeff")  # a UTF-8 byte-order mark isn't text
 
     if content_type == "text/plain":
-        return Page(title="", text=normalize(body))
-    return extract_text(body)
+        page = Page(title="", text=normalize(body))
+    else:
+        page = extract_text(body)
+    if not page.text:
+        raise EmptyPageError(EMPTY_MESSAGE)
+    return page
 
 
 def host_of(url: str) -> str:
