@@ -60,6 +60,7 @@ python -m pip install -e .
 | `markfind search WORDS... [-n N] [--raw]` | Search titles, URLs, folders and page text, best matches first. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
 | `markfind list [--folder PATH]` | List bookmarks, optionally one folder and its subfolders. |
 | `markfind broken [--all] [--kind KIND] [--urls]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `other`); `--urls` prints bare URLs for scripting. |
+| `markfind export [-f FORMAT] [-o FILE] [--skip-dead]` | Write bookmarks as an HTML file any browser can import, or as Markdown, JSON or CSV. `--skip-dead` leaves out dead links; `--folder` and `--query` pick which bookmarks. |
 | `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
 
 When indexing a page, markfind skips navigation, footers, sidebars, cookie

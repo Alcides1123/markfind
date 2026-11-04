@@ -20,6 +20,10 @@
 - Run `markfind fetch --all` to re-index pages fetched with 0.1.0.
 - `fetch --older-than AGE` (e.g. `90d`, `2w`, `12h`) refreshes stale pages,
   and `fetch --failed` retries pages whose last fetch failed.
+- New `markfind export` writes bookmarks as an HTML file every browser can
+  import, or as Markdown, JSON or CSV. `--skip-dead` leaves out dead links,
+  so you can import a cleaned-up file into the browser; `--folder` and
+  `--query` choose what to export (#19).
 - Per-site rate limiting: one request at a time per host, at least `--delay`
   seconds apart (default 1). Downloads are interleaved across hosts.
 - Fetch errors are classified (`gone`, `dns`, `blocked`, `server`, `http`,

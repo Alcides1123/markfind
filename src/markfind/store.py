@@ -80,6 +80,33 @@ class Stats:
     failed_by_kind: dict[str, int]
 
 
+@dataclass(frozen=True)
+class Record:
+    """A bookmark with its fetch status, for exporting."""
+
+    url: str
+    title: str
+    folder: str
+    added_at: str | None
+    fetched_at: str | None
+    error_kind: str | None
+
+    @property
+    def status(self) -> str:
+        """``indexed``, ``pending`` (never fetched), or the failure kind."""
+        if self.error_kind:
+            return self.error_kind
+        return "indexed" if self.fetched_at else "pending"
+
+
+def _folder_filter(folder: str | None) -> tuple[str, tuple[str, ...]]:
+    """A WHERE clause matching a folder and its subfolders, or nothing if no folder."""
+    if not folder:
+        return "", ()
+    escaped = folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return "WHERE folder = ? OR folder LIKE ? ESCAPE '\\'", (folder, escaped + "/%")
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -251,13 +278,23 @@ class Store:
 
     def list_bookmarks(self, folder: str | None = None) -> list[tuple[str, str, str]]:
         """(url, title, folder) rows, optionally limited to a folder and its subfolders."""
-        sql = "SELECT url, title, folder FROM bookmarks"
-        params: tuple[str, ...] = ()
-        if folder:
-            sql += " WHERE folder = ? OR folder LIKE ? ESCAPE '\\'"
-            escaped = folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            params = (folder, escaped + "/%")
-        return self.db.execute(sql + " ORDER BY folder, title", params).fetchall()
+        where, params = _folder_filter(folder)
+        sql = f"SELECT url, title, folder FROM bookmarks {where} ORDER BY folder, title"
+        return self.db.execute(sql, params).fetchall()
+
+    def records(self, folder: str | None = None) -> list[Record]:
+        """Every bookmark, or one folder and its subfolders, ordered by folder and title."""
+        where, params = _folder_filter(folder)
+        rows = self.db.execute(
+            f"""
+            SELECT url, title, folder, added_at, fetched_at,
+                   CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END
+            FROM bookmarks {where}
+            ORDER BY folder, title, url
+            """,
+            params,
+        )
+        return [Record(*row) for row in rows]
 
     def stats(self) -> Stats:
         row = self.db.execute(
