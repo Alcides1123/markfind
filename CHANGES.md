@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `markfind broken --delete` removes the bookmarks the report lists from
+  markfind, after asking (`--yes` skips the question). It follows `--kind`
+  and `--all`, and leaves the browser alone. New `Store.delete(urls)` in the
+  Python API (#33).
+
 - `markfind import` reads Safari's `~/Library/Safari/Bookmarks.plist`
   directly (binary or XML property list), keeping *Favorites*, *Bookmarks
   Menu* and *Reading List* as folders. `markfind sync` finds it on macOS

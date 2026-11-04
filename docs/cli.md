@@ -402,7 +402,7 @@ before `http`, then the shortest.
 ## broken
 
 ```text
-markfind broken [--all | --kind KIND ...] [--urls]
+markfind broken [--all | --kind KIND ...] [--urls | --delete [--yes]]
 ```
 
 Lists bookmarks whose last fetch failed, grouped by
@@ -415,9 +415,25 @@ the folder.
 | `--all` | Every failed bookmark. |
 | `--kind KIND` | Only this kind. Repeat for several: `--kind ssl --kind timeout`. |
 | `--urls` | Print bare URLs, one per line, for use in scripts. |
+| `--delete` | After the report, ask, then remove the listed bookmarks and their indexed text from markfind. |
+| `-y`, `--yes` | With `--delete`, don't ask. Needed when there is no terminal to ask on, for example in a script. |
 
 A later successful fetch removes a bookmark from this list, so temporary
 problems clear themselves with `markfind fetch --failed`.
+
+### Deleting dead bookmarks
+
+```sh
+markfind broken --delete                 # likely-dead ones (gone, dns)
+markfind broken --kind timeout --delete  # any other selection works too
+```
+
+`--delete` uses the same selection as the report and shows the report
+first, so you see exactly what goes. It changes only markfind's database,
+never the browser: a bookmark that is still in the browser comes back with
+the next `markfind sync` or import of that file. To clean up the browser as
+well, delete them there, or write a clean file with
+[`markfind export --skip-dead`](#export) and import it into the browser.
 
 ---
 

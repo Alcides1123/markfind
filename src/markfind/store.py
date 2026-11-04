@@ -266,11 +266,28 @@ class Store:
             (source,),
         ).fetchall()
         gone = [(id_, url, title) for id_, url, title in rows if url not in keep]
+        self._delete_ids(id_ for id_, _, _ in gone)
+        return [(url, title) for _, url, title in gone]
+
+    def delete(self, urls: Iterable[str]) -> int:
+        """Delete the bookmarks with these URLs and their indexed text.
+
+        URLs that aren't in the database are ignored. Returns how many
+        bookmarks were deleted.
+        """
+        ids = [
+            row[0]
+            for url in dict.fromkeys(urls)
+            for row in self.db.execute("SELECT id FROM bookmarks WHERE url = ?", (url,))
+        ]
+        self._delete_ids(ids)
+        return len(ids)
+
+    def _delete_ids(self, ids: Iterable[int]) -> None:
         with self.db:
-            for id_, _, _ in gone:
+            for id_ in ids:
                 self.db.execute("DELETE FROM bookmarks WHERE id = ?", (id_,))
                 self.db.execute("DELETE FROM bookmarks_fts WHERE rowid = ?", (id_,))
-        return [(url, title) for _, url, title in gone]
 
     def _reindex(self, id_: int, body: str | None = None) -> None:
         if body is None:
