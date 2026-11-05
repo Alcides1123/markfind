@@ -11,6 +11,7 @@ markfind [--db PATH] COMMAND [options]
 
 Commands: [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
 [`search`](#search) · [`similar`](#similar) · [`list`](#list) · [`tags`](#tags) ·
+[`tag`](#tag) · [`note`](#note) ·
 [`duplicates`](#duplicates) · [`broken`](#broken) · [`export`](#export) ·
 [`stats`](#stats) · [`serve`](#serve)
 
@@ -218,8 +219,9 @@ Every failure is recorded with a **kind**. [`broken`](#broken) and
 markfind search [-n N] [--raw] [--folder PATH] [--tag TAG] WORD [WORD ...]
 ```
 
-Searches bookmark titles, URLs, folder paths, [tags](#tags) and page text,
-and prints the best matches first.
+Searches bookmark titles, URLs, folder paths, [tags](#tags), your
+[notes](#note) and page text, and prints the best matches first. Results
+show the bookmark's tags and the start of its note.
 
 | Option | Meaning |
 |---|---|
@@ -349,9 +351,12 @@ markfind tags
 Lists every tag with the number of bookmarks that have it, most used first.
 Tags that differ only in case count as one.
 
-markfind reads tags from Firefox: from `places.sqlite` (what
-[`sync`](#sync) uses) and from the `TAGS` attribute of Firefox's HTML
-export. Chrome, Edge and Safari have no tags.
+Tags come from two places:
+
+- **Firefox:** markfind reads them from `places.sqlite` (what
+  [`sync`](#sync) uses) and from the `TAGS` attribute of Firefox's HTML
+  export. Chrome, Edge and Safari have no tags.
+- **You:** [`markfind tag`](#tag) adds your own, from any browser.
 
 Tags are searched like the rest of a bookmark, and a tag match ranks almost
 as high as a title match. To use them:
@@ -363,8 +368,75 @@ markfind list --tag to-read
 markfind export --tag to-read -f markdown
 ```
 
-Re-importing a bookmark from Firefox replaces its tags. Importing the same
-URL from a browser without tags keeps the ones it has.
+Re-importing a bookmark from Firefox replaces the tags that came from
+Firefox, and never the ones you added. Importing the same URL from a browser
+without tags keeps the ones it has.
+
+---
+
+## tag
+
+```text
+markfind tag URL [TAG ...] [--remove]
+```
+
+Adds your own tags to a bookmark, or removes ones you added. Without tags,
+shows the bookmark's tags. `URL` is the bookmark's address exactly as
+[`list`](#list) or [`search`](#search) shows it.
+
+```text
+$ markfind tag https://sqlite.org/fts5.html databases "to read"
+your tags: databases, to read
+from your browser: sqlite
+$ markfind tag https://sqlite.org/fts5.html --remove "to read"
+your tags: databases
+from your browser: sqlite
+```
+
+| Option | Meaning |
+|---|---|
+| `--remove` | Remove the given tags instead of adding them. |
+
+Your tags work everywhere imported ones do: `search --tag`, `list --tag`,
+`export --tag`, [`tags`](#tags) and the web UI. They're kept apart from the
+browser's, so importing or syncing never changes them. For the same reason,
+`--remove` only removes tags you added; a tag from Firefox comes back on the
+next import, so remove it in Firefox. Case doesn't matter, and a tag the
+bookmark already has isn't added twice.
+
+Exit code 1 if `--remove` couldn't remove one of the tags, 2 if the URL
+isn't in markfind.
+
+---
+
+## note
+
+```text
+markfind note URL [TEXT ...]
+markfind note URL --clear
+```
+
+Writes a note on a bookmark: why you saved it, what to read first, what to
+try. Quotes around the text are optional. A new note replaces the old one.
+Without text, prints the note.
+
+```sh
+markfind note https://sqlite.org/fts5.html read section 4 before the migration
+markfind note https://sqlite.org/fts5.html          # print it
+markfind note https://sqlite.org/fts5.html --clear  # remove it
+```
+
+Notes are searchable, and a match ranks between a page-text match and a tag
+match: they're your own words about the page. Search results and the web UI
+show them, and [`export`](#export) includes them. Use `--raw 'note:word'` to
+search notes only.
+
+Importing never changes a note, but deleting a bookmark deletes its note:
+`broken --delete`, or `sync --prune` after you remove the bookmark from your
+browser.
+
+Exit code 1 when printing a bookmark that has no note, 2 if the URL isn't in
+markfind.
 
 ---
 
@@ -504,9 +576,9 @@ Writes bookmarks out, to standard output or to `FILE`.
 
 | Format | What you get |
 |---|---|
-| `html` (default) | A standard bookmark file with your folders, dates and tags. Every browser can import it, and Firefox keeps the tags. |
-| `markdown` | A reading list: a heading per folder and `- [Title](url)` links. With `--query`, a numbered list in ranked order. |
-| `json` | A list of objects with `url`, `title`, `folder`, `added_at`, `fetched_at`, `status` and `tags` (a list). |
+| `html` (default) | A standard bookmark file with your folders, dates, tags and notes. Every browser can import it; Firefox keeps the tags and shows notes as the bookmark's description. |
+| `markdown` | A reading list: a heading per folder and `- [Title](url)` links, each followed by its note. With `--query`, a numbered list in ranked order. |
+| `json` | A list of objects with `url`, `title`, `folder`, `added_at`, `fetched_at`, `status`, `tags` (a list) and `note`. |
 | `csv` | The same fields as columns, with tags separated by commas. Written with a byte-order mark when saved to a file, so Excel reads it as UTF-8. |
 
 `status` is `indexed`, `pending` (not fetched yet), or the
@@ -593,7 +665,8 @@ The page has three views:
   menu next to the search box limits results to one folder and its
   subfolders; it lists every folder with how many bookmarks it holds.
 
-  Each result also shows its [tags](#tags). Click one, or pick it from the
+  Each result also shows your [note](#note) and its [tags](#tags). Click a
+  tag, or pick it from the
   tag menu, to see only bookmarks with that tag. With the search box empty,
   that lists every bookmark with the tag (up to 100), like `markfind list
   --tag`. The tag menu only appears if some bookmark has a tag. The query,

@@ -199,17 +199,25 @@ CREATE TABLE bookmarks (
     fetch_error TEXT,     -- NULL if the last fetch succeeded
     error_kind TEXT,      -- failure kind, NULL if the last fetch succeeded
     source TEXT,          -- file it was last imported from, for pruning
-    tags TEXT NOT NULL DEFAULT ''  -- comma-separated, from Firefox
+    tags TEXT NOT NULL DEFAULT '',          -- browser_tags + my_tags
+    browser_tags TEXT NOT NULL DEFAULT '',  -- from the last import
+    my_tags TEXT NOT NULL DEFAULT '',       -- added with `markfind tag`
+    note TEXT NOT NULL DEFAULT ''           -- set with `markfind note`
 );
 
 CREATE VIRTUAL TABLE bookmarks_fts USING fts5(
-    title, url, body, folder, tags,
+    title, url, body, folder, tags, note,
     tokenize = 'porter unicode61 remove_diacritics 2'
 );
 ```
 
 - `bookmarks_fts.rowid` equals `bookmarks.id`. Whenever a bookmark's title,
-  folder, tags or page text changes, its index row is deleted and re-inserted.
+  folder, tags, note or page text changes, its index row is deleted and
+  re-inserted.
+- Tags are comma-separated. Imports write only `browser_tags`, and
+  `markfind tag` only `my_tags`; after either, `tags` is recomputed as both
+  together without repeats. Everything that reads tags (search, filters,
+  export, the web UI) reads `tags`, so it can't tell the two apart.
 - The page text (`body`) is stored only in the FTS table.
 - The tokenizer folds case and accents (`unicode61 remove_diacritics 2`) and
   reduces English words to their stems (`porter`).
@@ -226,7 +234,8 @@ Results are ordered by FTS5's `bm25()` with per-column weights:
 | Column | Weight | Why |
 |---|---|---|
 | `title` | 5 | A title match is the strongest signal of what a page is about |
-| `tags` | 4 | You chose them yourself to describe the page |
+| `tags` | 4 | Chosen to describe the page, by you or in Firefox |
+| `note` | 3 | Your own words about the page, but longer and looser than tags |
 | `body` | 2 | The page text is where most matches come from |
 | `url` | 1 | Useful for domains and slugs, but noisy |
 | `folder` | 1 | Helps to find "everything in Recipes", but folders are broad |
@@ -246,7 +255,7 @@ endpoints and three static files. The files (`web/index.html`, `app.js` and
 | Endpoint | Returns |
 |---|---|
 | `GET /api/similar?url=…&limit=N` | `{"url", "title", "keywords", "results": [...]}`, results as for search. `400` without `url`, `404` if the bookmark isn't in markfind. |
-| `GET /api/search?q=…&raw=1&folder=PATH&tag=TAG&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags}]}`. `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag, ignoring case. With `tag` and no `q`, lists the bookmarks with that tag in folder order, with empty snippets. `400` with `{"error"}` for an invalid raw query. |
+| `GET /api/search?q=…&raw=1&folder=PATH&tag=TAG&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags, note}]}`. `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag, ignoring case. With `tag` and no `q`, lists the bookmarks with that tag in folder order, with empty snippets. `400` with `{"error"}` for an invalid raw query. |
 | `GET /api/folders` | `{"folders": [{path, count}]}`: every folder, parents included, in tree order. A count includes subfolders. |
 | `GET /api/tags` | `{"tags": [{tag, count}]}`: every tag, most used first, as [`markfind tags`](cli.md#tags) lists them. |
 | `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked}]}` |
@@ -294,6 +303,7 @@ The database stores its schema version in `PRAGMA user_version`. When
 | 2 | Adds `bookmarks.source`. Existing bookmarks get no source, so they're never pruned until a later import records one. |
 | 3 | No schema change. Pages fetched with no text, which used to count as indexed, are marked as `empty` failures. |
 | 4 | Adds `bookmarks.tags` and a `tags` column to `bookmarks_fts`. FTS5 tables can't gain columns, so the index is copied into a new table, page text included. |
+| 5 | Adds `bookmarks.browser_tags`, `my_tags` and `note`, and a `note` column to `bookmarks_fts` (copied the same way). Existing tags all came from the browser, so they're copied to `browser_tags`. |
 
 See [Development](development.md#changing-the-database-schema) for how to add
 a migration.

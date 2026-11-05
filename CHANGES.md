@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add your own tags and notes to bookmarks: `markfind tag URL TAG...`
+  (`--remove` to take them off) and `markfind note URL TEXT`. Your tags
+  work wherever imported ones do and are kept apart from them, so a
+  Firefox sync never changes them. Notes are searchable and shown in
+  search results, the web UI and exports (as the bookmark's description in
+  the HTML file). The database moves to schema version 5 automatically
+  (#43).
+
 - The web UI shows each result's tags. Click one, or pick it from the new
   tag menu, to filter by it; with the search box empty, that lists every
   bookmark with the tag. `/api/search` takes `tag`, and `/api/tags` lists

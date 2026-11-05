@@ -97,6 +97,10 @@ thread.
 | `failures(kinds=None) -> list[Failure]` | Bookmarks whose last fetch failed, optionally only the given kinds. |
 | `list_bookmarks(folder=None, tag=None) -> list[(url, title, folder)]` | All bookmarks, or one folder and its subfolders, or one tag. |
 | `tags() -> list[(tag, count)]` | Every tag, most used first. Tags differing only in case count as one. |
+| `bookmark_tags(url) -> BookmarkTags` | One bookmark's tags: `browser` (from the last import), `mine` (added with `add_tags`), and `all`, both together. |
+| `add_tags(url, tags) -> tuple` | Add your own tags. Returns those the bookmark didn't have yet (ignoring case). Imports never change them. |
+| `remove_tags(url, tags) -> tuple` | Remove tags added with `add_tags`. Returns those removed; browser tags are left alone. |
+| `note(url) -> str` / `set_note(url, text)` | Read or replace a bookmark's note; an empty text removes it. The note is indexed for search. |
 | `folders() -> list[(path, count)]` | Every folder, parents included, in tree order. A count includes subfolders. |
 | `records(folder=None, tag=None) -> list[Record]` | Like `list_bookmarks`, with dates and fetch status, for exporting. |
 | `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`. |
@@ -105,12 +109,12 @@ thread.
 
 Result types (frozen dataclasses):
 
-- **`SearchResult`**: `url`, `title`, `folder`, `snippet`, `tags`
+- **`SearchResult`**: `url`, `title`, `folder`, `snippet`, `tags`, `note`
 - **`Similar`**: `title` (of the bookmark you asked about), `keywords` (most
   telling first), `results` (`list[SearchResult]`)
 - **`Failure`**: `url`, `title`, `folder`, `kind`, `error`, `fetched_at`
 - **`Record`**: `url`, `title`, `folder`, `added_at`, `fetched_at`,
-  `error_kind`, `tags`, and `status` (`indexed`, `pending` or the failure kind)
+  `error_kind`, `tags`, `note`, and `status` (`indexed`, `pending` or the failure kind)
 
 **`to_fts_query(text)`** turns plain words into a safe FTS5 query in which
 all words must match. Pass the user's text through it unless you want raw FTS5
@@ -171,9 +175,9 @@ Each function takes a list of `Record`s and returns the whole file as a string.
 
 | Function | Returns |
 |---|---|
-| `to_html(records)` | A Netscape bookmark file that browsers import. `parse_netscape_html` reads it back unchanged. |
-| `to_markdown(records, ranked=False)` | Sections per folder, or a numbered list in the given order if `ranked`. |
-| `to_json(records)` / `to_csv(records)` | The `FIELDS`: `url`, `title`, `folder`, `added_at`, `fetched_at`, `status`, `tags` (a list in JSON, comma-separated in CSV). |
+| `to_html(records)` | A Netscape bookmark file that browsers import, with notes as `<DD>` descriptions. `parse_netscape_html` reads it back unchanged, apart from the notes, which it ignores. |
+| `to_markdown(records, ranked=False)` | Sections per folder, or a numbered list in the given order if `ranked`. Notes follow their links. |
+| `to_json(records)` / `to_csv(records)` | The `FIELDS`: `url`, `title`, `folder`, `added_at`, `fetched_at`, `status`, `tags` (a list in JSON, comma-separated in CSV), `note`. |
 
 `FORMATS` maps each format name to its function.
 

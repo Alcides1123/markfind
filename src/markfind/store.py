@@ -26,7 +26,12 @@ CREATE TABLE IF NOT EXISTS bookmarks (
     fetch_error TEXT,
     error_kind TEXT,  -- one of fetch.ERROR_KINDS when fetch_error is set
     source TEXT,  -- file the bookmark was last imported from, for pruning
-    tags TEXT NOT NULL DEFAULT ''  -- comma-separated
+    -- Comma-separated: browser_tags and my_tags together, which is what
+    -- search and filters use.
+    tags TEXT NOT NULL DEFAULT '',
+    browser_tags TEXT NOT NULL DEFAULT '',  -- as of the last import
+    my_tags TEXT NOT NULL DEFAULT '',  -- added with `markfind tag`
+    note TEXT NOT NULL DEFAULT ''
 );
 
 -- rowid matches bookmarks.id
@@ -36,6 +41,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_fts USING fts5(
     body,
     folder,
     tags,
+    note,
     tokenize = 'porter unicode61 remove_diacritics 2'
 );
 """
@@ -91,14 +97,39 @@ def _add_tags(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE bookmarks_fts_new RENAME TO bookmarks_fts")
 
 
+def _add_my_tags_and_notes(db: sqlite3.Connection) -> None:
+    columns = {row[1] for row in db.execute("PRAGMA table_info(bookmarks)")}
+    if "browser_tags" not in columns:
+        db.execute("ALTER TABLE bookmarks ADD COLUMN browser_tags TEXT NOT NULL DEFAULT ''")
+        # Until now, every tag came from the browser.
+        db.execute("UPDATE bookmarks SET browser_tags = tags")
+    for column in ("my_tags", "note"):
+        if column not in columns:
+            db.execute(f"ALTER TABLE bookmarks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+    fts_columns = [row[1] for row in db.execute("PRAGMA table_info(bookmarks_fts)")]
+    if "note" not in fts_columns:
+        db.execute(
+            "CREATE VIRTUAL TABLE bookmarks_fts_new USING fts5("
+            f"title, url, body, folder, tags, note, tokenize = '{_TOKENIZER}')"
+        )
+        db.execute(
+            """
+            INSERT INTO bookmarks_fts_new (rowid, title, url, body, folder, tags, note)
+            SELECT rowid, title, url, body, folder, tags, '' FROM bookmarks_fts
+            """
+        )
+        db.execute("DROP TABLE bookmarks_fts")
+        db.execute("ALTER TABLE bookmarks_fts_new RENAME TO bookmarks_fts")
+
+
 # Applied in order to databases whose PRAGMA user_version is lower than their
 # position + 1; SCHEMA always describes the latest version, so every migration
 # must also be a no-op on a freshly created database.
-MIGRATIONS = [_add_error_kind, _add_source, _mark_empty_pages, _add_tags]
+MIGRATIONS = [_add_error_kind, _add_source, _mark_empty_pages, _add_tags, _add_my_tags_and_notes]
 SCHEMA_VERSION = len(MIGRATIONS)
 
-# bm25() weights, in bookmarks_fts column order: title, url, body, folder, tags.
-RANK_WEIGHTS = (5.0, 1.0, 2.0, 1.0, 4.0)
+# bm25() weights, in bookmarks_fts column order: title, url, body, folder, tags, note.
+RANK_WEIGHTS = (5.0, 1.0, 2.0, 1.0, 4.0, 3.0)
 
 # similar(): words of 3+ letters or digits that start with a letter.
 _WORD = re.compile(r"[^\W\d_][^\W_]{2,}")
@@ -131,6 +162,7 @@ class SearchResult:
     folder: str
     snippet: str
     tags: tuple[str, ...] = ()
+    note: str = ""
 
 
 @dataclass(frozen=True)
@@ -169,6 +201,7 @@ class Record:
     fetched_at: str | None
     error_kind: str | None
     tags: tuple[str, ...] = ()
+    note: str = ""
 
     @property
     def status(self) -> str:
@@ -195,6 +228,23 @@ def _has_tag(tag: str | None, column: str = "tags") -> tuple[str, tuple[str, ...
 
 def _split_tags(value: str) -> tuple[str, ...]:
     return tuple(value.split(",")) if value else ()
+
+
+def _join_tags(*groups: Iterable[str]) -> str:
+    """Tags from several lists as one comma-separated value, without repeats."""
+    return ",".join(clean_tags(tag for group in groups for tag in group))
+
+
+@dataclass(frozen=True)
+class BookmarkTags:
+    """A bookmark's tags, by where they came from."""
+
+    browser: tuple[str, ...]  # as of the last import; change them in the browser
+    mine: tuple[str, ...]  # added with `markfind tag`
+
+    @property
+    def all(self) -> tuple[str, ...]:
+        return _split_tags(_join_tags(self.browser, self.mine))
 
 
 def _now() -> str:
@@ -269,17 +319,19 @@ class Store:
                         """
                         UPDATE bookmarks
                         SET title = ?, folder = ?, source = coalesce(?, source),
-                            tags = coalesce(?, tags)
+                            browser_tags = coalesce(?, browser_tags)
                         WHERE id = ?
                         """,
                         (bm.title, bm.folder, source, tags, id_),
                     )
+                    self._combine_tags(id_)
                     updated += 1
                 else:
                     cursor = self.db.execute(
                         """
-                        INSERT INTO bookmarks (url, title, folder, added_at, source, tags)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO bookmarks
+                            (url, title, folder, added_at, source, tags, browser_tags)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             bm.url,
@@ -287,6 +339,7 @@ class Store:
                             bm.folder,
                             bm.added_at.isoformat() if bm.added_at else None,
                             source,
+                            tags or "",
                             tags or "",
                         ),
                     )
@@ -330,6 +383,82 @@ class Store:
                 self.db.execute("DELETE FROM bookmarks WHERE id = ?", (id_,))
                 self.db.execute("DELETE FROM bookmarks_fts WHERE rowid = ?", (id_,))
 
+    def _combine_tags(self, id_: int) -> None:
+        """Set ``tags`` to the browser's tags plus the user's."""
+        browser, mine = self.db.execute(
+            "SELECT browser_tags, my_tags FROM bookmarks WHERE id = ?", (id_,)
+        ).fetchone()
+        tags = _join_tags(_split_tags(browser), _split_tags(mine))
+        self.db.execute("UPDATE bookmarks SET tags = ? WHERE id = ?", (tags, id_))
+
+    def _id(self, url: str) -> int:
+        row = self.db.execute("SELECT id FROM bookmarks WHERE url = ?", (url,)).fetchone()
+        if row is None:
+            raise KeyError(url)
+        return row[0]
+
+    def bookmark_tags(self, url: str) -> BookmarkTags:
+        """The tags of the bookmark with this URL. Raises KeyError if it isn't in markfind."""
+        browser, mine = self.db.execute(
+            "SELECT browser_tags, my_tags FROM bookmarks WHERE id = ?", (self._id(url),)
+        ).fetchone()
+        return BookmarkTags(_split_tags(browser), _split_tags(mine))
+
+    def add_tags(self, url: str, tags: Iterable[str]) -> tuple[str, ...]:
+        """Tag a bookmark. Returns the tags it didn't have yet (ignoring case).
+
+        Raises KeyError if the URL isn't in markfind.
+        """
+        id_ = self._id(url)
+        current = self.bookmark_tags(url)
+        have = {tag.lower() for tag in current.all}
+        added = tuple(tag for tag in clean_tags(tags) if tag.lower() not in have)
+        if added:
+            with self.db:
+                self.db.execute(
+                    "UPDATE bookmarks SET my_tags = ? WHERE id = ?",
+                    (_join_tags(current.mine, added), id_),
+                )
+                self._combine_tags(id_)
+                self._reindex(id_)
+        return added
+
+    def remove_tags(self, url: str, tags: Iterable[str]) -> tuple[str, ...]:
+        """Remove tags added with ``add_tags`` (ignoring case). Returns those removed.
+
+        Tags from the browser are left alone: the next import would bring them
+        back. Raises KeyError if the URL isn't in markfind.
+        """
+        id_ = self._id(url)
+        current = self.bookmark_tags(url)
+        unwanted = {tag.lower() for tag in clean_tags(tags)}
+        removed = tuple(tag for tag in current.mine if tag.lower() in unwanted)
+        if removed:
+            kept = [tag for tag in current.mine if tag.lower() not in unwanted]
+            with self.db:
+                self.db.execute(
+                    "UPDATE bookmarks SET my_tags = ? WHERE id = ?", (_join_tags(kept), id_)
+                )
+                self._combine_tags(id_)
+                self._reindex(id_)
+        return removed
+
+    def note(self, url: str) -> str:
+        """The note on the bookmark with this URL. Raises KeyError if it isn't in markfind."""
+        return self.db.execute(
+            "SELECT note FROM bookmarks WHERE id = ?", (self._id(url),)
+        ).fetchone()[0]
+
+    def set_note(self, url: str, text: str) -> None:
+        """Replace a bookmark's note; an empty text removes it.
+
+        Raises KeyError if the URL isn't in markfind.
+        """
+        id_ = self._id(url)
+        with self.db:
+            self.db.execute("UPDATE bookmarks SET note = ? WHERE id = ?", (text.strip(), id_))
+            self._reindex(id_)
+
     def _reindex(self, id_: int, body: str | None = None) -> None:
         if body is None:
             row = self.db.execute(
@@ -339,8 +468,8 @@ class Store:
         self.db.execute("DELETE FROM bookmarks_fts WHERE rowid = ?", (id_,))
         self.db.execute(
             """
-            INSERT INTO bookmarks_fts (rowid, title, url, body, folder, tags)
-            SELECT id, title, url, ?, folder, tags FROM bookmarks WHERE id = ?
+            INSERT INTO bookmarks_fts (rowid, title, url, body, folder, tags, note)
+            SELECT id, title, url, ?, folder, tags, note FROM bookmarks WHERE id = ?
             """,
             (body, id_),
         )
@@ -427,7 +556,7 @@ class Store:
             rows = self.db.execute(
                 f"""
                 SELECT b.url, b.title, b.folder,
-                       snippet(bookmarks_fts, 2, ?, ?, '...', 16), b.tags
+                       snippet(bookmarks_fts, 2, ?, ?, '...', 16), b.tags, b.note
                 FROM bookmarks_fts
                 JOIN bookmarks AS b ON b.id = bookmarks_fts.rowid
                 WHERE bookmarks_fts MATCH ? AND bookmarks_fts.rowid IS NOT ?
@@ -442,7 +571,7 @@ class Store:
             if "fts5" in message or "syntax error" in message or "no such column" in message:
                 raise QueryError(message) from exc
             raise
-        return [SearchResult(*row[:4], tags=_split_tags(row[4])) for row in rows]
+        return [SearchResult(*row[:4], tags=_split_tags(row[4]), note=row[5]) for row in rows]
 
     def similar(self, url: str, limit: int = 10, mark: tuple[str, str] = ("[", "]")) -> Similar:
         """Bookmarks most like the one with this URL: "more like this".
@@ -579,13 +708,13 @@ class Store:
             f"""
             SELECT url, title, folder, added_at, fetched_at,
                    CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END,
-                   tags
+                   tags, note
             FROM bookmarks WHERE {in_folder} AND {with_tag}
             ORDER BY folder, title, url
             """,
             (*folder_params, *tag_params),
         )
-        return [Record(*row[:6], tags=_split_tags(row[6])) for row in rows]
+        return [Record(*row[:6], tags=_split_tags(row[6]), note=row[7]) for row in rows]
 
     def stats(self) -> Stats:
         row = self.db.execute(
