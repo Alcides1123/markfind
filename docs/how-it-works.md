@@ -228,8 +228,9 @@ endpoints and three static files. The files (`web/index.html`, `app.js` and
 | Endpoint | Returns |
 |---|---|
 | `GET /api/similar?url=…&limit=N` | `{"url", "title", "keywords", "results": [...]}`, results as for search. `400` without `url`, `404` if the bookmark isn't in markfind. |
-| `GET /api/search?q=…&raw=1&folder=PATH&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags}]}`. `folder` keeps one folder and its subfolders. `400` with `{"error"}` for an invalid raw query. |
+| `GET /api/search?q=…&raw=1&folder=PATH&tag=TAG&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags}]}`. `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag, ignoring case. With `tag` and no `q`, lists the bookmarks with that tag in folder order, with empty snippets. `400` with `{"error"}` for an invalid raw query. |
 | `GET /api/folders` | `{"folders": [{path, count}]}`: every folder, parents included, in tree order. A count includes subfolders. |
+| `GET /api/tags` | `{"tags": [{tag, count}]}`: every tag, most used first, as [`markfind tags`](cli.md#tags) lists them. |
 | `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked}]}` |
 | `GET /api/stats` | `{"total", "indexed", "failed", "pending", "failed_by_kind"}` |
 

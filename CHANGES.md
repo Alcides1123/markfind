@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The web UI shows each result's tags. Click one, or pick it from the new
+  tag menu, to filter by it; with the search box empty, that lists every
+  bookmark with the tag. `/api/search` takes `tag`, and `/api/tags` lists
+  the tags (#41).
+
 - `markfind duplicates` also finds pages with nearly the same text, such as
   an article saved from two sites or a page saved again after a small edit,
   and shows how alike they are. `--similarity PCT` (default 80) sets how
