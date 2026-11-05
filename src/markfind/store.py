@@ -6,16 +6,17 @@ import math
 import re
 import sqlite3
 import zlib
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .archive import text_as_html
-from .duplicates import MIN_SIMILARITY, REASONS, Group, find_duplicates
+from .duplicates import MIN_SIMILARITY, REASONS, Entry, Group, find_duplicates
 from .fetch import EMPTY_MESSAGE
 from .importers import Bookmark, clean_tags
+from .topics import MIN_SIZE, cluster, vectors
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS bookmarks (
@@ -209,6 +210,19 @@ class Similar:
     title: str  # of the bookmark the others are similar to
     keywords: list[str]  # the words the match was based on, most telling first
     results: list[SearchResult]
+
+
+@dataclass(frozen=True)
+class Topic:
+    label: list[str]  # its most telling words, most telling first
+    entries: list[Entry]  # most typical bookmark first
+
+
+@dataclass(frozen=True)
+class Topics:
+    topics: list[Topic]  # biggest first
+    other: list[Entry]  # indexed bookmarks that fit no topic
+    unindexed: int  # bookmarks left out because they have no page text
 
 
 @dataclass(frozen=True)
@@ -746,6 +760,65 @@ class Store:
                 scored.append((weight * math.log(count / docs), word))
         scored.sort(key=lambda item: (-item[0], item[1]))
         return [word for _, word in scored[:SIMILAR_KEYWORDS]]
+
+    def topics(
+        self, count: int | None = None, min_size: int = MIN_SIZE, folder: str | None = None
+    ) -> Topics:
+        """Group indexed bookmarks into topics by their words; see ``markfind.topics``.
+
+        ``count`` is how many topics to look for (default: about the square
+        root of half the number of pages); ``folder`` limits it to one folder
+        and its subfolders.
+        """
+        in_folder, params = _in_folder(folder, "b.folder")
+        rows = self.db.execute(
+            f"""
+            SELECT b.url, b.title, b.folder, coalesce(f.body, '')
+            FROM bookmarks AS b LEFT JOIN bookmarks_fts AS f ON f.rowid = b.id
+            WHERE {in_folder} ORDER BY b.id
+            """,
+            params,
+        ).fetchall()
+        pages = [row for row in rows if row[3]]
+
+        # Count words as `similar` does: title words count extra, stopwords
+        # don't count, and words are grouped by the index's own stems.
+        word_counts: list[Counter[str]] = []
+        for _, title, _, body in pages:
+            words = Counter(_WORD.findall(body.lower()))
+            for word in _WORD.findall(title.lower()):
+                words[word] += _TITLE_WEIGHT
+            for word in _STOPWORDS & words.keys():
+                del words[word]
+            word_counts.append(words)
+        vocabulary = sorted(set().union(*word_counts)) if word_counts else []
+        stem_of = {word: stem for stem, word in self._stem(vocabulary)}
+        totals: Counter[str] = Counter()  # each word's count over all pages
+        stem_counts = []
+        for words in word_counts:
+            stems: Counter[str] = Counter()
+            for word, n in words.items():
+                stems[stem_of.get(word, word)] += n
+                totals[word] += n
+            stem_counts.append(stems)
+        spellings: defaultdict[str, list[str]] = defaultdict(list)
+        for word, stem in stem_of.items():
+            spellings[stem].append(word)
+
+        def spelled(stem: str) -> str:
+            # The stem's most common spelling: "database", not "databas".
+            return min(spellings.get(stem) or [stem], key=lambda w: (-totals[w], w))
+
+        found = cluster(vectors(stem_counts), count=count, min_size=min_size)
+        entries = [Entry(url, title, folder) for url, title, folder, _ in pages]
+        return Topics(
+            topics=[
+                Topic([spelled(stem) for stem in label], [entries[i] for i in group])
+                for group, label in zip(found.groups, found.labels, strict=True)
+            ],
+            other=[entries[i] for i in found.other],
+            unindexed=len(rows) - len(pages),
+        )
 
     def _stem(self, words: list[str]) -> list[tuple[str, str]]:
         """(stem, word) pairs, stemmed exactly as the index stems them."""

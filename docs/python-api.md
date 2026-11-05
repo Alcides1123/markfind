@@ -107,6 +107,7 @@ thread.
 | `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`, `saved_copies`, `saved_bytes` (compressed). |
 | `pages() -> list[(url, title, folder, text)]` | Every bookmark with its indexed page text (`''` if not fetched). |
 | `duplicates(by=REASONS, min_similarity=0.8) -> list[Group]` | Bookmarks saved more than once; see [`markfind.duplicates`](#markfindduplicates). |
+| `topics(count=None, min_size=3, folder=None) -> Topics` | Indexed bookmarks grouped by subject (see [`markfind topics`](cli.md#topics)). `Topics` has `topics` (a list of `Topic(label, entries)`, biggest first), `other` (`Entry`s with no clear topic) and `unindexed` (how many had no text). |
 
 Result types (frozen dataclasses):
 

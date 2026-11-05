@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- New `markfind topics`: groups your bookmarks into topics by the words
+  their pages use, with no folders or tags needed, and names each topic by
+  its most telling words.
+  - **Options:** `--count`, `--min-size`, `--folder` and `--json`.
+  - **Results:** the same bookmarks always give the same topics.
+  - **Python API:** `Store.topics()` (#49).
+
 - Fixed: a raw query with an unbalanced quote (`--raw '"open'`) or a bare
   `*` crashed `markfind search` and the web UI instead of reporting
   "invalid query". Found by the new browser tests (#53).

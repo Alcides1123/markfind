@@ -8,7 +8,7 @@ Each item has an issue with the details, and a rough estimate.
 |---|---|---|
 | #47 | Index PDF bookmarks (optional `pypdf` dependency) | 6 h |
 | #48 | Tune search ranking with a set of real queries | 5 h |
-| #49 | Group bookmarks into topics automatically (`markfind topics`) | 8 h |
+| #49 | ~~Group bookmarks into topics automatically (`markfind topics`)~~ (done) | 8 h |
 | #50 | ~~Decide how to treat pages marked `noindex`~~ (done) | 1.5 h |
 | #51 | Publish to PyPI, with a release workflow | 3 h |
 | #52 | Run CI on macOS and check Safari support on a real Mac | 2 h |
@@ -55,7 +55,7 @@ The sections below list everything by theme, done and planned.
 
 - [x] "More like this": `markfind similar URL` (#15)
 - [x] Web UI: a "similar" link on each search result (#28)
-- [ ] Group bookmarks into topics automatically, using the same keywords (#49)
+- [x] Group bookmarks into topics automatically, using the same keywords (#49)
 
 ## Later
 

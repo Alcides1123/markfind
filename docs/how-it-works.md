@@ -16,6 +16,9 @@ The code is small and has one module per stage, all in `src/markfind/`:
 | `extract.py` | Turn HTML into the page's main text |
 | `store.py` | SQLite schema, migrations, the FTS5 index, search |
 | `duplicates.py` | URL normalization, duplicate grouping and near-duplicate text matching |
+| `topics.py` | Grouping pages into topics: TF-IDF vectors and spherical k-means |
+| `archive.py` | Showing a saved copy as a standalone page |
+| `server.py` | The local web interface (`markfind serve`) and its JSON API |
 | `cli.py` | The `markfind` command |
 
 Everything uses the Python standard library: `html.parser`, `urllib`,
@@ -300,6 +303,47 @@ Design choices:
 - **One server per port.** On Windows, Python's default `SO_REUSEADDR` lets
   two servers bind the same port, so the server uses `SO_EXCLUSIVEADDRUSE`
   there instead.
+
+## Topics
+
+`markfind topics` (`topics.py`, with `Store.topics()`) groups pages by the
+words they use. It's plain Python over sparse dictionaries, with no
+numerical libraries.
+
+1. **Words.** Each indexed page's words are counted the way `similar` counts
+   them: title words count three times, stopwords are dropped, and words are
+   grouped by the index's own Porter stems.
+2. **Vectors.** Each page becomes a TF-IDF vector, `(1 + log tf) × log(N /
+   df)`, normalised to length 1. Some terms are left out:
+   - terms on only one page, which can't group anything;
+   - terms on more than half the pages, which can't tell most of them apart.
+
+   Only a page's 25 heaviest terms are kept: enough to place it, and short
+   vectors keep the clustering fast.
+3. **Spherical k-means.** This is k-means on unit vectors, compared by cosine
+   similarity.
+   - **Start:** centres are seeded with k-means++, from a fixed seed, so the
+     same pages always give the same topics.
+   - **Speed:** pages are compared only with centres they share a term with,
+     found through an inverted index.
+   - **Restarts:** k-means can settle on a poor grouping, so it runs from 4
+     starting points and keeps the one whose pages are closest to their
+     centres in total.
+4. **How many.** By default, k is about √(pages / 2), capped at 40. That's
+   only an estimate, and guessing high splits a subject in two, so topics
+   whose centres are more than 0.25 alike are merged, and k-means runs again
+   from the merged centres. On test collections, halves of one subject were
+   0.3–1.0 alike, and different subjects at most 0.12. With `--count`, there's
+   no merging.
+5. **Leftovers.** Pages less than 0.1 similar to their topic, and topics
+   under `--min-size`, go to *No clear topic*.
+6. **Labels.** Each topic is named by its centre's three heaviest stems, each
+   shown as its most common spelling in the pages ("database", not
+   "databas").
+
+On a synthetic collection of 3,000 pages of 800 words in 30 subjects, it
+finds exactly 30 topics, each from one subject, in about 5 to 10 seconds.
+Most of that is counting words in Python.
 
 ## Saved copies
 
