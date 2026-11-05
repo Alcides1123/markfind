@@ -12,7 +12,7 @@ Each item has an issue with the details, and a rough estimate.
 | #50 | ~~Decide how to treat pages marked `noindex`~~ (done) | 1.5 h |
 | #51 | Publish to PyPI, with a release workflow | 3 h |
 | #52 | Run CI on macOS and check Safari support on a real Mac | 2 h |
-| #53 | Browser tests for the web interface | 4 h |
+| #53 | ~~Browser tests for the web interface~~ (done) | 4 h |
 | | **Total** | **29.5 h** |
 
 The sections below list everything by theme, done and planned.
@@ -66,4 +66,4 @@ The sections below list everything by theme, done and planned.
 - [x] CI: GitHub Actions with lint, tests on Linux and Windows, and a package build (#3)
 - [ ] Publish to PyPI (#51)
 - [ ] Run CI on macOS too (dropped in #5 because jobs never got a runner) (#52)
-- [ ] Browser tests for the web interface (#53)
+- [x] Browser tests for the web interface (#53)
