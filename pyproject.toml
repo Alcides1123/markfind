@@ -20,7 +20,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.15"]
+# Index PDF bookmarks.
+pdf = ["pypdf>=4"]
+dev = ["pytest>=8", "ruff>=0.15", "pypdf>=4"]
 
 [project.scripts]
 markfind = "markfind.cli:main"

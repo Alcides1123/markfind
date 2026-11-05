@@ -203,6 +203,12 @@ Path("working-links.html").write_text(to_html(keep), encoding="utf-8")
 | `extract_text(html, base_url="") -> Page` | Title and main text of an HTML document, with boilerplate removed (see [How it works](how-it-works.md#text-extraction)), plus a readable copy. `base_url` makes the copy's links absolute. |
 | `Page(title, text, html="")` | Frozen dataclass. `html` is the readable copy, an HTML fragment built from an allowlist of tags (see [Saved copies](how-it-works.md#saved-copies)); it doesn't take part in comparisons. |
 
+`markfind.pdf.extract_pdf(data) -> Page` reads a PDF's title and text, and makes
+a readable copy, using the optional `pypdf` package. It raises
+`PdfUnsupportedError` (no `pypdf`, password-protected or damaged) or
+`PdfEmptyError` (no text). `markfind.pdf.available()` says whether `pypdf` is
+installed.
+
 `markfind.archive.render(url, title, saved_at, body_html, text_only)` wraps a
 copy in a complete page with a banner. `STYLE` is its stylesheet, and
 `STYLE_HASH` the CSP source that allows exactly that.

@@ -121,7 +121,20 @@ Servers don't always say what they're sending. `sniff_content_type()`
 checks the start of the body when the `Content-Type` header is missing (Python
 would otherwise report `text/plain`) or says `text/plain`: a body that opens
 with `<!DOCTYPE html`, `<html`, `<head` or `<body` is HTML. Without a header,
-NUL bytes or a `%PDF` signature mean binary data, which isn't indexed.
+a `%PDF` signature means a PDF, and NUL bytes mean other binary data, which
+isn't indexed.
+
+**PDFs** (`pdf.py`) are read with `pypdf`, an optional dependency, so the
+core stays standard-library only. The module imports it only when a PDF
+arrives.
+
+- **Size:** a PDF can't be read once truncated, so `fetch_page()` keeps
+  reading past the usual 2 MB limit, up to `MAX_PDF_BYTES` (30 MB).
+- **Encryption:** PDFs encrypted only to set permissions open with an
+  empty password; ones that need a real password are reported as such.
+- **Text:** the first `MAX_PAGES` (300) pages are read. Their text is
+  indexed, and the saved copy has one paragraph per block of text, with a
+  rule between pages.
 
 Failures go through `classify_error()`, which maps the exception (HTTP status,
 DNS failure, timeout, certificate error, and so on) to one of the
