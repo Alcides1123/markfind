@@ -70,14 +70,19 @@ python -m pip install -e .
 | `markfind duplicates [--by url\|text\|similar] [--urls]` | Bookmarks saved more than once: the same URL apart from `http`/`https`, `www.`, tracking parameters and the like, the same page text, or nearly the same text (`--similarity`, default 80%). The cleanest URL is starred; `--urls` prints the other copies. |
 | `markfind broken [--all] [--kind KIND] [--urls \| --delete]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `empty`, `other`); `--urls` prints bare URLs for scripting; `--delete` removes the listed bookmarks from markfind after asking. |
 | `markfind export [-f FORMAT] [-o FILE] [--skip-dead]` | Write bookmarks as an HTML file any browser can import, or as Markdown, JSON or CSV. `--skip-dead` leaves out dead links; `--folder` and `--query` pick which bookmarks. |
-| `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |
-| `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, folder and tag filters, arrow-key navigation, a *Similar* button on each result, and a dead-links view. Local and read-only. |
+| `markfind archive URL` | Open markfind's saved copy of a page in your browser, even after the page is gone. `-o FILE` saves it, `--text` prints the text. |
+| `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending, and how many saved copies there are. |
+| `markfind serve [--open] [--port N]` | Search in your browser: results update as you type, folder and tag filters, arrow-key navigation, a *Similar* button on each result, *Saved copy* links, and a dead-links view. Local and read-only. |
 
 When indexing a page, markfind skips navigation, footers, sidebars, cookie
 banners and similar boilerplate, and keeps only the `<main>` / `<article>`
 content when a page has one. Pages without those are judged by their text:
 unlabelled menus and link lists around the block holding the page's prose
 are left out. Either way, searches match what the page is actually about.
+
+It also saves a readable copy of that content: text, headings, lists, code,
+tables and links, without scripts or images, compressed to a few KB a page.
+When a bookmark dies, `markfind archive URL` still shows you what it said.
 
 Fetching is polite: markfind sends at most one request at a time to each
 site, waits `--delay` seconds between them, and spreads the work across sites

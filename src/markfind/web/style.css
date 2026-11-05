@@ -235,7 +235,9 @@ a.link:hover { text-decoration: underline; }
   cursor: pointer;
 }
 
-.similar:hover, .back:hover { text-decoration: underline; }
+.similar:hover, .back:hover, a.saved:hover { text-decoration: underline; }
+
+a.saved { color: var(--accent); text-decoration: none; }
 
 .similar-header {
   margin-top: 16px;

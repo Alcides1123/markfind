@@ -45,7 +45,7 @@
 - [x] Small local web UI (`markfind serve`) with search-as-you-type (#11)
 - [x] Web UI: filter by folder, keyboard navigation through results
 - [x] User tags and notes, searchable alongside page text (#43)
-- [ ] Save an archived copy of each page so results survive link rot
+- [x] Save an archived copy of each page so results survive link rot (#45)
 - [x] CI: GitHub Actions with lint, tests on Linux and Windows, and a package build (#3)
 - [ ] Publish to PyPI
 - [ ] Run CI on macOS too (dropped in #5 because jobs never got a runner)

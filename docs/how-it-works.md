@@ -248,18 +248,19 @@ around the matches.
 
 ## The web interface
 
-`markfind serve` (`server.py`) is a `ThreadingHTTPServer` with three JSON
-endpoints and three static files. The files (`web/index.html`, `app.js` and
+`markfind serve` (`server.py`) is a `ThreadingHTTPServer` with JSON
+endpoints, a page for saved copies, and three static files. The files (`web/index.html`, `app.js` and
 `style.css`) ship as package data. There's no framework and no build step.
 
 | Endpoint | Returns |
 |---|---|
 | `GET /api/similar?url=…&limit=N` | `{"url", "title", "keywords", "results": [...]}`, results as for search. `400` without `url`, `404` if the bookmark isn't in markfind. |
-| `GET /api/search?q=…&raw=1&folder=PATH&tag=TAG&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags, note}]}`. `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag, ignoring case. With `tag` and no `q`, lists the bookmarks with that tag in folder order, with empty snippets. `400` with `{"error"}` for an invalid raw query. |
+| `GET /api/search?q=…&raw=1&folder=PATH&tag=TAG&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags, note, saved}]}`. `saved` says whether there's a saved copy. `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag, ignoring case. With `tag` and no `q`, lists the bookmarks with that tag in folder order, with empty snippets. `400` with `{"error"}` for an invalid raw query. |
 | `GET /api/folders` | `{"folders": [{path, count}]}`: every folder, parents included, in tree order. A count includes subfolders. |
 | `GET /api/tags` | `{"tags": [{tag, count}]}`: every tag, most used first, as [`markfind tags`](cli.md#tags) lists them. |
-| `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked}]}` |
+| `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked, saved}]}` |
 | `GET /api/stats` | `{"total", "indexed", "failed", "pending", "failed_by_kind"}` |
+| `GET /archive?url=…` | The bookmark's [saved copy](#saved-copies) as an HTML page, or `404` with a plain-text message if there's none. |
 
 Design choices:
 
@@ -277,6 +278,12 @@ Design choices:
   plus `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.
   Static files are looked up in a fixed table, so paths like `/../x` can't
   reach other files.
+- **Saved copies are sandboxed.** `/archive` serves HTML built from other
+  sites' pages, so on top of the allowlist it was built from, it gets its
+  own policy: `sandbox; default-src 'none'; style-src 'sha256-…'`. The
+  sandbox disables scripts and gives the page an opaque origin, so even a
+  sanitizer bug couldn't call this server's API. Nothing outside can be
+  loaded, and the one stylesheet allowed is markfind's own, by its hash.
 - **DNS rebinding.** On a loopback address, any request whose `Host` header
   isn't `localhost`, `127.0.0.1` or `[::1]` is refused. Otherwise a website
   could point its own domain at `127.0.0.1` and read your results from your
@@ -284,6 +291,34 @@ Design choices:
 - **One server per port.** On Windows, Python's default `SO_REUSEADDR` lets
   two servers bind the same port, so the server uses `SO_EXCLUSIVEADDRUSE`
   there instead.
+
+## Saved copies
+
+`extract_text()` builds the readable copy (`Page.html`) in the same pass as
+the text, so the copy holds exactly the content that's indexed: the
+`<main>`/`<article>`, or the block picked by text density, or the whole page
+minus boilerplate.
+
+- **Allowlist, not filtering.** The copy is rebuilt from scratch, never
+  passed through:
+  - only these tags are written: headings, `p`, lists, `blockquote`,
+    `pre`/`code`, inline emphasis, tables, `a`, `br` and `hr`;
+    `div`/`section`/`article`/`main`/`header` all become `div`;
+  - other tags are dropped, but their text is kept;
+  - text is always HTML-escaped;
+  - the only attributes are `href` on links (made absolute, and only
+    `http`/`https`) and numeric `colspan`/`rowspan` on table cells.
+- **Balanced.** End tags without a matching start are dropped, and anything
+  left open is closed, since the copy is a slice of a possibly broken page.
+  Wrappers left empty are removed.
+- **Stored compressed.** `set_page()` writes the copy to the `archive`
+  table, zlib-compressed. `set_error()` leaves it alone, so a dead page
+  keeps its last good copy.
+- **Fallback.** For pages without a copy, `saved_copy()` falls back to the
+  indexed text in `bookmarks_fts`, which also survives failed fetches.
+- **Showing it.** `archive.render()` wraps the copy in a page with a banner
+  and a fixed stylesheet. `markfind archive` writes that page to a file;
+  `markfind serve` sends it with a sandboxing policy (see above).
 
 ## Schema versions and migrations
 
@@ -303,6 +338,7 @@ The database stores its schema version in `PRAGMA user_version`. When
 | 2 | Adds `bookmarks.source`. Existing bookmarks get no source, so they're never pruned until a later import records one. |
 | 3 | No schema change. Pages fetched with no text, which used to count as indexed, are marked as `empty` failures. |
 | 4 | Adds `bookmarks.tags` and a `tags` column to `bookmarks_fts`. FTS5 tables can't gain columns, so the index is copied into a new table, page text included. |
+| 6 | Adds the `archive` table for [saved copies](#saved-copies). |
 | 5 | Adds `bookmarks.browser_tags`, `my_tags` and `note`, and a `note` column to `bookmarks_fts` (copied the same way). Existing tags all came from the browser, so they're copied to `browser_tags`. |
 
 See [Development](development.md#changing-the-database-schema) for how to add

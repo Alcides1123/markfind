@@ -163,6 +163,7 @@ def test_tag_without_query_lists_its_bookmarks(tagged_server):
             "snippet": "",
             "tags": ["python", "Search"],
             "note": "",
+            "saved": True,
         },
         {
             "url": "https://b.example/",
@@ -171,6 +172,7 @@ def test_tag_without_query_lists_its_bookmarks(tagged_server):
             "snippet": "",
             "tags": ["search"],
             "note": "",
+            "saved": True,
         },
     ]
     _, data = get_json(tagged_server, "/api/search?tag=search&limit=1")

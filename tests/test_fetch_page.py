@@ -36,6 +36,11 @@ PAGES = {
         b'<div id="app-mount"></div></body></html>',
     ),
     "/blank-text": ("text/plain", b"  \n\t "),
+    "/docs/page": (
+        "text/html",
+        b'<p>See <a href="../intro">the intro</a>, <a href="#top">top</a>'
+        b' and <a href="javascript:alert(1)">this</a>.</p>',
+    ),
 }
 
 
@@ -79,6 +84,22 @@ def test_plain_text_stays_text(base_url):
     assert fetch_page(base_url + "/no-type-text").text == "Just some notes. Second line."
     # Real text that merely mentions a tag isn't mistaken for HTML.
     assert fetch_page(base_url + "/plain-text").text == "<b> is how you write bold in HTML."
+
+
+def test_saved_copy_of_plain_text_keeps_lines(base_url):
+    assert (
+        fetch_page(base_url + "/no-type-text").html == "<pre>Just some notes.\nSecond line.</pre>"
+    )
+    assert fetch_page(base_url + "/plain-text").html == (
+        "<pre>&lt;b&gt; is how you write bold in HTML.</pre>"
+    )
+
+
+def test_saved_copy_links_are_absolute(base_url):
+    html = fetch_page(base_url + "/docs/page").html
+    assert f'<a href="{base_url}/intro">the intro</a>' in html
+    assert f'<a href="{base_url}/docs/page#top">top</a>' in html
+    assert "<a>this</a>" in html  # not a web link: the text stays, the target goes
 
 
 @pytest.mark.parametrize("path", ["/no-type-pdf", "/no-type-binary", "/pdf"])
