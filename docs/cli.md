@@ -13,7 +13,7 @@ Commands: [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
 [`search`](#search) · [`similar`](#similar) · [`list`](#list) · [`tags`](#tags) ·
 [`tag`](#tag) · [`note`](#note) ·
 [`duplicates`](#duplicates) · [`broken`](#broken) · [`export`](#export) ·
-[`stats`](#stats) · [`serve`](#serve)
+[`archive`](#archive) · [`stats`](#stats) · [`serve`](#serve)
 
 ---
 
@@ -150,8 +150,9 @@ markfind fetch [--older-than AGE] [--failed] [--all]
                [--workers N] [--timeout S] [--delay S] [--max-retry-wait S] [-q]
 ```
 
-Downloads bookmarked pages and indexes their text. By default it fetches only
-bookmarks that have **never** been fetched.
+Downloads bookmarked pages, indexes their text and saves a
+[readable copy](#archive) of each. By default it fetches only bookmarks
+that have **never** been fetched.
 
 | Option | Meaning |
 |---|---|
@@ -549,6 +550,10 @@ the folder.
 A later successful fetch removes a bookmark from this list, so temporary
 problems clear themselves with `markfind fetch --failed`.
 
+Bookmarks with a [saved copy](#archive) say `saved copy` after the date,
+and the report ends with how many have one. A dead link with a copy isn't
+lost: read it with `markfind archive URL`.
+
 ### Deleting dead bookmarks
 
 ```sh
@@ -557,7 +562,8 @@ markfind broken --kind timeout --delete  # any other selection works too
 ```
 
 `--delete` uses the same selection as the report and shows the report
-first, so you see exactly what goes. It changes only markfind's database,
+first, so you see exactly what goes. Deleting a bookmark deletes its saved
+copy too. It changes only markfind's database,
 never the browser: a bookmark that is still in the browser comes back with
 the next `markfind sync` or import of that file. To clean up the browser as
 well, delete them there, or write a clean file with
@@ -620,6 +626,56 @@ Exit codes: 1 if the file can't be written, 2 for an invalid `--raw` query.
 
 ---
 
+## archive
+
+```text
+markfind archive URL [-o FILE | --text]
+```
+
+Opens markfind's saved copy of a bookmarked page in your web browser, even
+after the page itself is gone.
+
+```text
+$ markfind archive https://www.gnu.org/philosophy/free-sw.en.html
+opened the saved copy in your browser: /tmp/markfind-copy-3f1c9a0b7d2e.html
+```
+
+| Option | Meaning |
+|---|---|
+| `-o FILE` | Write the page to `FILE` instead of opening it. |
+| `--text` | Print the plain text instead. |
+
+**What's saved.** Every successful [`fetch`](#fetch) saves a readable copy
+of the content markfind indexes, without menus, footers and other page
+chrome:
+
+- **Kept:** text, headings, paragraphs, lists, quotes, code blocks, tables
+  and links. Links are made absolute, so they still work.
+- **Left out:** images, scripts, styles, forms and embedded media.
+
+A banner at the top says it's a copy, of which address, and when it was
+saved. Copies are stored compressed and take about a third of the space of
+the page text: around 4 KB for a Wikipedia article, 27 KB for a long
+documentation page.
+
+**When it's updated.** A later successful fetch replaces the copy. A failed
+one (404, unknown host, timeout, ...) never does, so the copy keeps what the
+page said when it last worked.
+
+**Older bookmarks.** Pages fetched before markfind saved copies have none
+until they're fetched again; `markfind fetch --all` re-fetches everything
+now. Their indexed text survives failed fetches too, so for a page that's
+gone already, `archive` shows that text instead, without headings or links.
+
+The [web UI](#serve) has a *Saved copy* link on search results and dead
+links. Deleting a bookmark (`broken --delete`, `sync --prune`) deletes its
+copy.
+
+Exit code 1 if there's no saved copy (the page has never been fetched
+successfully), 2 if the URL isn't in markfind.
+
+---
+
 ## stats
 
 ```text
@@ -631,9 +687,11 @@ bookmarks: 812
 indexed:   774
 failed:    38 (gone 21, timeout 9, dns 5, blocked 3)
 pending:   0
+saved copies: 774 (6.1 MB)
 ```
 
-`pending` counts bookmarks that have never been fetched.
+`pending` counts bookmarks that have never been fetched. `saved copies` is
+the number of [saved copies](#archive) and the space they take.
 
 ---
 
@@ -680,6 +738,10 @@ The page has three views:
   address too.
 - **Dead links:** the [`broken`](#broken) report grouped by kind, with a
   switch to show every failure.
+
+Search results and dead links have a *Saved copy* link when markfind has
+[one](#archive). It opens in a new tab, served with a policy that blocks
+scripts and every outside resource.
 
 Keyboard:
 

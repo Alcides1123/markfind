@@ -24,6 +24,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
+from .archive import STYLE_HASH, render
 from .fetch import DEAD_KINDS
 from .store import QueryError, SearchResult, Store, to_fts_query
 
@@ -50,6 +51,16 @@ _HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
 }
+
+# Saved copies come from arbitrary pages. They're rebuilt from an allowlist of
+# tags, and on top of that this policy lets them load nothing and run nothing:
+# `sandbox` without allow-scripts disables scripts and gives the page an
+# opaque origin, so it can't read this server's API either. The only style
+# allowed is archive.STYLE.
+_ARCHIVE_CSP = (
+    f"sandbox; default-src 'none'; style-src '{STYLE_HASH}'; "
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+)
 
 _LOCAL_NAMES = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -79,6 +90,7 @@ def _result(r: SearchResult) -> dict[str, object]:
         "snippet": r.snippet,
         "tags": list(r.tags),
         "note": r.note,
+        "saved": r.saved,
     }
 
 
@@ -153,6 +165,7 @@ class _Handler(BaseHTTPRequestHandler):
             "/api/tags": self._tags,
             "/api/broken": self._broken,
             "/api/stats": self._stats,
+            "/archive": self._archive,
         }
         if url.path in routes:
             routes[url.path](params)
@@ -178,7 +191,8 @@ class _Handler(BaseHTTPRequestHandler):
                 with self._store() as store:
                     records = store.records(folder, tag=tag)[: _limit(params, MAX_LIMIT)]
             results = [
-                _result(SearchResult(r.url, r.title, r.folder, "", r.tags, r.note)) for r in records
+                _result(SearchResult(r.url, r.title, r.folder, "", r.tags, r.note, r.saved))
+                for r in records
             ]
             self._send_json({"query": text, "results": results})
             return
@@ -236,6 +250,7 @@ class _Handler(BaseHTTPRequestHandler):
                         "kind": f.kind,
                         "error": f.error,
                         "checked": f.fetched_at,
+                        "saved": f.saved,
                     }
                     for f in failures
                 ],
@@ -255,15 +270,39 @@ class _Handler(BaseHTTPRequestHandler):
             }
         )
 
+    def _archive(self, params: dict[str, str]) -> None:
+        url = params.get("url", "")
+        with self._store() as store:
+            try:
+                copy = store.saved_copy(url) if url else None
+            except KeyError:
+                copy = None
+        if copy is None:
+            self._send(
+                b"markfind has no saved copy of this page.",
+                "text/plain; charset=utf-8",
+                HTTPStatus.NOT_FOUND,
+            )
+            return
+        page = render(copy.url, copy.title, copy.saved_at, copy.html, copy.text_only)
+        self._send(page.encode("utf-8"), "text/html; charset=utf-8", csp=_ARCHIVE_CSP)
+
     def _send_json(self, data: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self._send(body, "application/json; charset=utf-8", status)
 
-    def _send(self, body: bytes, ctype: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def _send(
+        self,
+        body: bytes,
+        ctype: str,
+        status: HTTPStatus = HTTPStatus.OK,
+        csp: str | None = None,
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        for name, value in _HEADERS.items():
+        headers = _HEADERS if csp is None else {**_HEADERS, "Content-Security-Policy": csp}
+        for name, value in headers.items():
             self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)

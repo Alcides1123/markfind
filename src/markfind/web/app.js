@@ -100,6 +100,16 @@ function similarButton(url) {
   return button;
 }
 
+// A link to what markfind saved of the page, served by /archive.
+function savedCopyLink(url) {
+  const a = el("a", "saved", "Saved copy");
+  a.href = `/archive?url=${encodeURIComponent(url)}`;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.title = "Read the copy markfind saved of this page";
+  return a;
+}
+
 function tagButtons(tags) {
   const box = el("span", "tags");
   for (const tag of tags) {
@@ -127,6 +137,7 @@ function renderResults(results) {
     if (r.folder) meta.append(el("span", "folder", r.folder));
     if (r.tags && r.tags.length) meta.append(tagButtons(r.tags));
     meta.append(similarButton(r.url));
+    if (r.saved) meta.append(savedCopyLink(r.url));
     item.append(meta);
 
     if (r.note) {
@@ -378,6 +389,7 @@ async function loadBroken() {
         meta.append(el("span", "error", f.error));
         meta.append(el("span", null, `checked ${f.checked.slice(0, 10)}`));
         if (f.folder) meta.append(el("span", "folder", f.folder));
+        if (f.saved) meta.append(savedCopyLink(f.url));
         item.append(meta);
         list.append(item);
       }

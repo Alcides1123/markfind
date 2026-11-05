@@ -134,7 +134,7 @@ def test_migration_from_version_4(tmp_path):
     db.close()
 
     with Store(path) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 5
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         fts = [row[1] for row in store.db.execute("PRAGMA table_info(bookmarks_fts)")]
         assert fts == ["title", "url", "body", "folder", "tags", "note"]
         # Tags so far came from the browser, so an import may replace them.

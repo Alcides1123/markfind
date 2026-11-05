@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import sys
+import tempfile
+import webbrowser
 from datetime import timedelta
 from pathlib import Path
 
 from . import __version__
+from .archive import render
 from .browsers import BROWSERS, find_sources
 from .duplicates import MIN_SIMILARITY, REASONS
 from .extract import Page
@@ -207,7 +211,7 @@ def _fetch(store: Store, pending: list[tuple[int, str]], args: argparse.Namespac
     )
     for done, (id_, url, result) in enumerate(results, 1):
         if isinstance(result, Page):
-            store.set_page(id_, result.text, result.title)
+            store.set_page(id_, result.text, result.title, html=result.html)
             ok += 1
             status = "ok"
         else:
@@ -426,6 +430,47 @@ def cmd_duplicates(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def _size(n: int) -> str:
+    """A byte count for people: 512 B, 3.4 KB, 12.0 MB."""
+    for unit in ("B", "KB", "MB"):
+        if n < 1000 or unit == "MB":
+            return f"{n} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1000
+    raise AssertionError("unreachable")
+
+
+def cmd_archive(store: Store, args: argparse.Namespace) -> int:
+    try:
+        copy = store.saved_copy(args.url)
+    except KeyError:
+        return _not_in_markfind(args.url)
+    if copy is None:
+        print("no saved copy: this page has never been fetched successfully", file=sys.stderr)
+        return 1
+    if args.text:
+        print(copy.text)
+        return 0
+
+    page = render(copy.url, copy.title, copy.saved_at, copy.html, copy.text_only)
+    if args.output:
+        path = Path(args.output)
+    else:
+        name = hashlib.sha256(copy.url.encode()).hexdigest()[:12]
+        path = Path(tempfile.gettempdir()) / f"markfind-copy-{name}.html"
+    try:
+        path.write_text(page, encoding="utf-8")
+    except OSError as exc:
+        print(f"error: could not write {path}: {exc}", file=sys.stderr)
+        return 1
+    if args.output:
+        print(f"saved copy written to {path}", file=sys.stderr)
+    elif webbrowser.open(path.resolve().as_uri()):
+        print(f"opened the saved copy in your browser: {path}")
+    else:
+        print(f"saved copy written to {path}; open it in your browser")
+    return 0
+
+
 def cmd_stats(store: Store, args: argparse.Namespace) -> int:
     s = store.stats()
     print(f"bookmarks: {s.total}")
@@ -433,6 +478,7 @@ def cmd_stats(store: Store, args: argparse.Namespace) -> int:
     breakdown = ", ".join(f"{kind} {n}" for kind, n in s.failed_by_kind.items())
     print(f"failed:    {s.failed}" + (f" ({breakdown})" if breakdown else ""))
     print(f"pending:   {s.total - s.fetched - s.failed}")
+    print(f"saved copies: {s.saved_copies} ({_size(s.saved_bytes)})")
     return 0
 
 
@@ -482,7 +528,18 @@ def cmd_broken(store: Store, args: argparse.Namespace) -> int:
         details = f"{f.error}, checked {f.fetched_at[:10]}"
         if f.folder:
             details += f", folder: {f.folder}"
+        if f.saved:
+            details += ", saved copy"
         print(f"    {details}")
+    saved = sum(f.saved for f in failures)
+    if saved:
+        print()
+        print(
+            f"{saved} of these {'has' if saved == 1 else 'have'} a saved copy;"
+            " read it with 'markfind archive URL'."
+        )
+        if args.delete:
+            print("Deleting a bookmark deletes its saved copy too.")
     if args.delete:
         return _delete_failures(store, failures, args.yes)
     return 0
@@ -696,6 +753,24 @@ def build_parser() -> argparse.ArgumentParser:
         " nearly-same pages only with --by similar",
     )
     p.set_defaults(func=cmd_duplicates)
+
+    p = sub.add_parser(
+        "archive",
+        help="read the saved copy of a page, even after it's gone",
+        description=(
+            "Open what markfind saved of a bookmarked page in your web browser: a"
+            " readable copy (text, headings, lists, tables and links) from the last"
+            " successful fetch. Pages fetched before markfind saved copies show their"
+            " indexed text instead."
+        ),
+    )
+    p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
+    shown = p.add_mutually_exclusive_group()
+    shown.add_argument(
+        "-o", "--output", metavar="FILE", help="write the page to FILE instead of opening it"
+    )
+    shown.add_argument("--text", action="store_true", help="print the plain text instead")
+    p.set_defaults(func=cmd_archive)
 
     p = sub.add_parser("stats", help="show how many bookmarks are indexed")
     p.set_defaults(func=cmd_stats)

@@ -14,6 +14,7 @@ from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from html import escape
 from itertools import chain, count, zip_longest
 from urllib.parse import urlsplit
 
@@ -184,6 +185,7 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         # Very large pages are truncated rather than skipped.
         raw = response.read(max_bytes)
         charset = response.headers.get_content_charset() or "utf-8"
+        final_url = response.geturl() or url  # after redirects, for links in the copy
 
     content_type = sniff_content_type(declared, raw)
     if content_type is None:
@@ -196,9 +198,10 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
     body = body.removeprefix("\ufeff")  # a UTF-8 byte-order mark isn't text
 
     if content_type == "text/plain":
-        page = Page(title="", text=normalize(body))
+        text = normalize(body)
+        page = Page(title="", text=text, html=f"<pre>{escape(body.strip())}</pre>" if text else "")
     else:
-        page = extract_text(body)
+        page = extract_text(body, base_url=final_url)
     if not page.text:
         raise EmptyPageError(EMPTY_MESSAGE)
     return page

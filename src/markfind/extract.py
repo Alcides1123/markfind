@@ -5,13 +5,19 @@ search results: navigation, footers, sidebars, cookie banners and the like.
 When the page marks up its main content (``<main>`` or ``<article>``) and that
 content is substantial, only it is kept. Otherwise the block holding most of the
 page's prose is found by its text, so unlabelled menus and link lists are left out.
+
+The same pass builds a readable copy of that content (``Page.html``): its
+headings, paragraphs, lists, tables and links, rebuilt from an allowlist of tags
+so that nothing from the page (scripts, styles, event handlers) gets through.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from html import escape
 from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
 
 # Elements whose contents are never visible prose.
 _NOT_TEXT = frozenset({"script", "style", "noscript", "template", "svg", "iframe", "canvas"})
@@ -65,6 +71,21 @@ _VOID = frozenset(
     }
 )
 
+# Tags kept in the readable copy, and what each becomes. Everything else is
+# dropped, though its text is kept.
+_READER_TAGS = {
+    **{
+        tag: tag
+        for tag in (
+            "p h1 h2 h3 h4 h5 h6 ul ol li dl dt dd blockquote pre code em strong b i u s"
+            " sub sup mark small kbd samp var del ins q cite abbr figure figcaption"
+            " table caption thead tbody tfoot tr th td a br hr"
+        ).split()
+    },
+    **dict.fromkeys(("div", "section", "article", "main", "header"), "div"),
+}
+_READER_VOID = frozenset({"br", "hr"})
+
 # Main content shorter than this is likely a teaser; use the whole page instead.
 MIN_MAIN_WORDS = 30
 
@@ -81,6 +102,9 @@ MIN_PROSE_SHARE = 0.8
 class Page:
     title: str
     text: str
+    # A readable copy of the same content as safe HTML (a fragment, no
+    # <html> or <body>); empty if none was made.
+    html: str = field(default="", compare=False, repr=False)
 
 
 def normalize(text: str) -> str:
@@ -106,9 +130,66 @@ def _is_boilerplate(tag: str, attrs: dict[str, str | None], in_main: bool) -> bo
     )
 
 
+def _reader_attrs(tag: str, attrs: dict[str, str | None], base_url: str) -> str:
+    """The attributes the readable copy keeps: link targets and table spans."""
+    if tag == "a":
+        href = (attrs.get("href") or "").strip()
+        if href:
+            href = urljoin(base_url, href)
+            if urlsplit(href).scheme in ("http", "https"):
+                return f' href="{escape(href)}"'
+    elif tag in ("td", "th"):
+        return "".join(
+            f' {name}="{attrs[name]}"'
+            for name in ("colspan", "rowspan")
+            if (attrs.get(name) or "").isdigit()
+        )
+    return ""
+
+
+def _reader_html(items: list[tuple[str, str, str]]) -> str:
+    """Join ("start" | "end" | "text", tag or text, attributes) items into balanced HTML.
+
+    End tags without a matching start are dropped, and anything left open is
+    closed, since the items are a selection from a possibly broken page.
+    """
+    out: list[str] = []
+    stack: list[str] = []
+    in_pre = 0
+    for kind, value, attrs in items:
+        if kind == "text":
+            out.append(escape(value if in_pre else re.sub(r"\s+", " ", value), quote=False))
+        elif kind == "start":
+            out.append(f"<{value}{attrs}>")
+            if value not in _READER_VOID:
+                stack.append(value)
+                in_pre += value == "pre"
+        elif value in stack:
+            while stack:
+                tag = stack.pop()
+                out.append(f"</{tag}>")
+                in_pre -= tag == "pre"
+                if tag == value:
+                    break
+    out.extend(f"</{tag}>" for tag in reversed(stack))
+    html = "".join(out)
+    # Wrappers left empty by dropped elements.
+    while True:
+        shorter = re.sub(r"<(div|p|li|span)>\s*</\1>", "", html)
+        if shorter == html:
+            return html.strip()
+        html = shorter
+
+
 class _TextParser(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, base_url: str = "") -> None:
         super().__init__(convert_charrefs=True)
+        self.base_url = base_url
+        # The readable copy: (kind, tag or text, attributes) items, with the
+        # block each is in and whether it's inside <main>/<article>.
+        self.items: list[tuple[str, str, str]] = []
+        self.item_block: list[int] = []
+        self.item_in_main: list[bool] = []
         self.title: list[str] = []
         self.parts: list[str] = []
         self.main_parts: list[str] = []
@@ -168,6 +249,11 @@ class _TextParser(HTMLParser):
             while self._open_blocks and self._open_blocks[-1][0] == "td":
                 self._open_blocks.pop()
 
+    def _item(self, kind: str, value: str, attrs: str = "") -> None:
+        self.items.append((kind, value, attrs))
+        self.item_block.append(self._block)
+        self.item_in_main.append(self._main_depth > 0)
+
     def _raw_start(self, tag: str) -> None:
         if self._raw_skip_tag is not None:
             if tag == self._raw_skip_tag:
@@ -199,11 +285,16 @@ class _TextParser(HTMLParser):
             self._main_depth += 1
         if self._skip_tag is None:
             self._open(tag)
+            if tag in _READER_TAGS:
+                name = _READER_TAGS[tag]
+                self._item("start", name, _reader_attrs(name, dict(attrs), self.base_url))
         self._space()
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # Self-closing tags like <div class="ad"/> have no content to skip.
         if self._skip_tag is None:
+            if tag in _READER_VOID:
+                self._item("start", tag)
             self._space()
 
     def handle_endtag(self, tag: str) -> None:
@@ -214,6 +305,8 @@ class _TextParser(HTMLParser):
                 if not self._skip_depth:
                     self._skip_tag = None
             return
+        if tag in _READER_TAGS and tag not in _READER_VOID:
+            self._item("end", _READER_TAGS[tag])
         if tag == "title":
             self._in_title = False
         elif tag in _MAIN_TAGS and self._main_depth:
@@ -238,10 +331,13 @@ class _TextParser(HTMLParser):
             self.block_prose[block] += len(data.split())
         if self._main_depth:
             self.main_parts.append(data)
+        self._item("text", data)
 
 
-def _densest_text(parser: _TextParser) -> str | None:
-    """The text of the block holding most of the page's prose, if not the whole page.
+def _densest_block(parser: _TextParser) -> list[bool] | None:
+    """Which blocks are inside the one holding most of the page's prose.
+
+    None if that's the whole page or under MIN_MAIN_WORDS words.
 
     Each block scores the prose directly inside it plus half the score of each
     block directly inside it, scaled down by the share of its text that is
@@ -272,29 +368,47 @@ def _densest_text(parser: _TextParser) -> str | None:
     inside[best] = True
     for i in range(best + 1, count):
         inside[i] = inside[parent[i]]
-    kept = (part for part, b in zip(parser.parts, parser.part_block, strict=True) if inside[b])
-    text = normalize("".join(kept))
-    return text if len(text.split()) >= MIN_MAIN_WORDS else None
+    prose = sum(parser.block_prose[i] for i in range(count) if inside[i])
+    return inside if prose >= MIN_MAIN_WORDS else None
 
 
-def extract_text(html: str) -> Page:
-    parser = _TextParser()
+def extract_text(html: str, base_url: str = "") -> Page:
+    """The page's title, its main text, and a readable copy of that text.
+
+    ``base_url`` is the page's address, for making links in the copy absolute;
+    without it, relative links lose their target.
+    """
+    parser = _TextParser(base_url)
     parser.feed(html)
     parser.close()
+    title = normalize("".join(parser.title))
 
-    text = normalize("".join(parser.parts))
+    def page(text_keep: list[bool] | None, item_keep: list[bool] | None) -> Page:
+        parts, items = parser.parts, parser.items
+        if text_keep is not None:
+            parts = [p for p, keep in zip(parts, text_keep, strict=True) if keep]
+            items = [i for i, keep in zip(items, item_keep or (), strict=True) if keep]
+        return Page(title, normalize("".join(parts)), _reader_html(items))
+
     main = normalize("".join(parser.main_parts))
     if len(main.split()) >= MIN_MAIN_WORDS:
-        text = main
-    else:
-        # If the boilerplate rules removed nearly everything (under 10% of
-        # the visible text), a wrapper element was probably misjudged; index
-        # all the visible text rather than an empty page. Small pages that
-        # are mostly navigation keep their filtered text.
-        words = len(text.split())
-        raw = normalize("".join(parser.raw_parts))
-        if words < MIN_MAIN_WORDS and words * 10 < len(raw.split()):
-            text = raw
-        else:
-            text = _densest_text(parser) or text
-    return Page(title=normalize("".join(parser.title)), text=text)
+        return Page(
+            title,
+            main,
+            _reader_html(
+                [i for i, in_main in zip(parser.items, parser.item_in_main, strict=True) if in_main]
+            ),
+        )
+    # If the boilerplate rules removed nearly everything (under 10% of the
+    # visible text), a wrapper element was probably misjudged; index all the
+    # visible text rather than an empty page. Small pages that are mostly
+    # navigation keep their filtered text.
+    text = normalize("".join(parser.parts))
+    words = len(text.split())
+    raw = normalize("".join(parser.raw_parts))
+    if words < MIN_MAIN_WORDS and words * 10 < len(raw.split()):
+        return Page(title, raw, f"<p>{escape(raw, quote=False)}</p>" if raw else "")
+    inside = _densest_block(parser)
+    if inside is None:
+        return page(None, None)
+    return page([inside[b] for b in parser.part_block], [inside[b] for b in parser.item_block])

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- markfind now keeps a readable copy of every page it fetches, so a
+  bookmark that dies isn't lost: `markfind archive URL` opens it in your
+  browser (`-o FILE` saves it, `--text` prints the text).
+  - **The copy:** the same content markfind indexes, with headings,
+    lists, code, tables and links, rebuilt from an allowlist so nothing
+    from the page can run. It's stored compressed, and failed fetches
+    never replace it.
+  - **Older bookmarks:** pages fetched before this fall back to their
+    indexed text.
+  - **Elsewhere:** the web UI links to copies from search results and dead
+    links, in a sandboxed page; `broken` marks bookmarks that have one, and
+    `stats` counts them.
+  - **Schema:** the database moves to version 6 automatically (#45).
+
 - Add your own tags and notes to bookmarks: `markfind tag URL TAG...`
   (`--remove` to take them off) and `markfind note URL TEXT`. Your tags
   work wherever imported ones do and are kept apart from them, so a

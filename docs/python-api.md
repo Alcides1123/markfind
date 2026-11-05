@@ -90,8 +90,9 @@ thread.
 | `delete(urls) -> int` | Delete the bookmarks with these URLs and their indexed text. Unknown URLs are ignored. Returns how many were deleted. |
 | `prune(source, keep) -> list[(url, title)]` | Delete bookmarks whose source is `source` and whose URL isn't in `keep`. Returns what was removed. Import every source before pruning any. |
 | `pending(refetch=False, older_than=None, failed=False) -> list[(id, url)]` | Bookmarks to fetch: never-fetched ones, plus everything (`refetch`), those fetched before `now - older_than` (a `timedelta`), or failed ones (`failed`). |
-| `set_page(id, text, page_title="")` | Store fetched text and clear any error. `page_title` is used only if the bookmark has no title. |
-| `set_error(id, message, kind="other")` | Record a failed fetch. |
+| `set_page(id, text, page_title="", html="")` | Store fetched text and clear any error. `page_title` is used only if the bookmark has no title. `html` is the readable copy to save (`Page.html`; it must be safe to show); without it, an earlier copy is kept. |
+| `set_error(id, message, kind="other")` | Record a failed fetch. The indexed text and saved copy are kept. |
+| `saved_copy(url) -> SavedCopy \| None` | The page's saved copy, or else its indexed text (`text_only=True`); `None` if there's neither. Raises `KeyError` if the URL isn't in markfind. |
 | `search(query, limit=20, mark=("[", "]"), exclude=None, folder=None, tag=None) -> list[SearchResult]` | Run an FTS5 query. `mark` wraps matched words in the snippet; `exclude` leaves out one bookmark id; `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag (ignoring case). Raises `QueryError` for invalid syntax. |
 | `similar(url, limit=10, mark=("[", "]")) -> Similar` | Bookmarks most like this one (see [`markfind similar`](cli.md#similar)). Raises `KeyError` if the URL isn't in the database. Works on read-only connections. |
 | `failures(kinds=None) -> list[Failure]` | Bookmarks whose last fetch failed, optionally only the given kinds. |
@@ -103,18 +104,21 @@ thread.
 | `note(url) -> str` / `set_note(url, text)` | Read or replace a bookmark's note; an empty text removes it. The note is indexed for search. |
 | `folders() -> list[(path, count)]` | Every folder, parents included, in tree order. A count includes subfolders. |
 | `records(folder=None, tag=None) -> list[Record]` | Like `list_bookmarks`, with dates and fetch status, for exporting. |
-| `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`. |
+| `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`, `saved_copies`, `saved_bytes` (compressed). |
 | `pages() -> list[(url, title, folder, text)]` | Every bookmark with its indexed page text (`''` if not fetched). |
 | `duplicates(by=REASONS, min_similarity=0.8) -> list[Group]` | Bookmarks saved more than once; see [`markfind.duplicates`](#markfindduplicates). |
 
 Result types (frozen dataclasses):
 
-- **`SearchResult`**: `url`, `title`, `folder`, `snippet`, `tags`, `note`
+- **`SearchResult`**: `url`, `title`, `folder`, `snippet`, `tags`, `note`,
+  `saved` (whether there's a saved copy)
 - **`Similar`**: `title` (of the bookmark you asked about), `keywords` (most
   telling first), `results` (`list[SearchResult]`)
-- **`Failure`**: `url`, `title`, `folder`, `kind`, `error`, `fetched_at`
+- **`Failure`**: `url`, `title`, `folder`, `kind`, `error`, `fetched_at`, `saved`
+- **`SavedCopy`**: `url`, `title`, `saved_at` (`None` when `text_only`), `html`
+  (safe to show), `text` (the indexed text), `text_only`
 - **`Record`**: `url`, `title`, `folder`, `added_at`, `fetched_at`,
-  `error_kind`, `tags`, `note`, and `status` (`indexed`, `pending` or the failure kind)
+  `error_kind`, `tags`, `note`, `saved`, and `status` (`indexed`, `pending` or the failure kind)
 
 **`to_fts_query(text)`** turns plain words into a safe FTS5 query in which
 all words must match. Pass the user's text through it unless you want raw FTS5
@@ -196,5 +200,9 @@ Path("working-links.html").write_text(to_html(keep), encoding="utf-8")
 
 | Name | Description |
 |---|---|
-| `extract_text(html) -> Page` | Title and main text of an HTML document, with boilerplate removed (see [How it works](how-it-works.md#text-extraction)). |
-| `Page(title, text)` | Frozen dataclass. |
+| `extract_text(html, base_url="") -> Page` | Title and main text of an HTML document, with boilerplate removed (see [How it works](how-it-works.md#text-extraction)), plus a readable copy. `base_url` makes the copy's links absolute. |
+| `Page(title, text, html="")` | Frozen dataclass. `html` is the readable copy, an HTML fragment built from an allowlist of tags (see [Saved copies](how-it-works.md#saved-copies)); it doesn't take part in comparisons. |
+
+`markfind.archive.render(url, title, saved_at, body_html, text_only)` wraps a
+copy in a complete page with a banner. `STYLE` is its stylesheet, and
+`STYLE_HASH` the CSP source that allows exactly that.

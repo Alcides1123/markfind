@@ -5,12 +5,14 @@ from __future__ import annotations
 import math
 import re
 import sqlite3
+import zlib
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .archive import text_as_html
 from .duplicates import MIN_SIMILARITY, REASONS, Group, find_duplicates
 from .fetch import EMPTY_MESSAGE
 from .importers import Bookmark, clean_tags
@@ -43,6 +45,14 @@ CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_fts USING fts5(
     tags,
     note,
     tokenize = 'porter unicode61 remove_diacritics 2'
+);
+
+-- The readable copy from the last successful fetch: zlib-compressed UTF-8
+-- HTML (see extract.Page.html). A failed fetch leaves it in place.
+CREATE TABLE IF NOT EXISTS archive (
+    id INTEGER PRIMARY KEY,  -- bookmarks.id
+    saved_at TEXT NOT NULL,
+    html BLOB NOT NULL
 );
 """
 
@@ -125,7 +135,23 @@ def _add_my_tags_and_notes(db: sqlite3.Connection) -> None:
 # Applied in order to databases whose PRAGMA user_version is lower than their
 # position + 1; SCHEMA always describes the latest version, so every migration
 # must also be a no-op on a freshly created database.
-MIGRATIONS = [_add_error_kind, _add_source, _mark_empty_pages, _add_tags, _add_my_tags_and_notes]
+def _add_archive(db: sqlite3.Connection) -> None:
+    # SCHEMA creates the table; the version bump tells older markfind
+    # releases, which would leave copies behind when deleting, to stay away.
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS archive "
+        "(id INTEGER PRIMARY KEY, saved_at TEXT NOT NULL, html BLOB NOT NULL)"
+    )
+
+
+MIGRATIONS = [
+    _add_error_kind,
+    _add_source,
+    _mark_empty_pages,
+    _add_tags,
+    _add_my_tags_and_notes,
+    _add_archive,
+]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 # bm25() weights, in bookmarks_fts column order: title, url, body, folder, tags, note.
@@ -163,6 +189,7 @@ class SearchResult:
     snippet: str
     tags: tuple[str, ...] = ()
     note: str = ""
+    saved: bool = False  # whether there's a saved copy to read
 
 
 @dataclass(frozen=True)
@@ -173,6 +200,20 @@ class Similar:
 
 
 @dataclass(frozen=True)
+class SavedCopy:
+    """What markfind kept of a page, to read after it's gone."""
+
+    url: str
+    title: str
+    saved_at: str | None  # None for text_only copies
+    html: str  # safe to show: built from an allowlist of tags, or escaped text
+    text: str  # the indexed text
+    # True when there's no readable copy, only the indexed text: pages
+    # fetched before markfind saved copies.
+    text_only: bool
+
+
+@dataclass(frozen=True)
 class Failure:
     url: str
     title: str
@@ -180,6 +221,7 @@ class Failure:
     kind: str
     error: str
     fetched_at: str
+    saved: bool = False  # whether there's a saved copy to read
 
 
 @dataclass(frozen=True)
@@ -188,6 +230,8 @@ class Stats:
     fetched: int
     failed: int
     failed_by_kind: dict[str, int]
+    saved_copies: int = 0
+    saved_bytes: int = 0  # compressed size of the saved copies
 
 
 @dataclass(frozen=True)
@@ -202,6 +246,7 @@ class Record:
     error_kind: str | None
     tags: tuple[str, ...] = ()
     note: str = ""
+    saved: bool = False  # whether there's a saved copy to read
 
     @property
     def status(self) -> str:
@@ -224,6 +269,18 @@ def _has_tag(tag: str | None, column: str = "tags") -> tuple[str, tuple[str, ...
     if not tag or not tag.strip():
         return "1", ()
     return f"instr(',' || lower({column}) || ',', ',' || lower(?) || ',') > 0", (tag.strip(),)
+
+
+def _has_copy(bookmark: str) -> str:
+    """An SQL expression: whether the bookmark (a table alias) has a saved copy to read.
+
+    That's a readable copy, or else indexed text, which outlives failed fetches.
+    """
+    return (
+        f"(EXISTS (SELECT 1 FROM archive WHERE archive.id = {bookmark}.id)"
+        f" OR EXISTS (SELECT 1 FROM bookmarks_fts AS copy_fts"
+        f" WHERE copy_fts.rowid = {bookmark}.id AND copy_fts.body != ''))"
+    )
 
 
 def _split_tags(value: str) -> tuple[str, ...]:
@@ -382,6 +439,7 @@ class Store:
             for id_ in ids:
                 self.db.execute("DELETE FROM bookmarks WHERE id = ?", (id_,))
                 self.db.execute("DELETE FROM bookmarks_fts WHERE rowid = ?", (id_,))
+                self.db.execute("DELETE FROM archive WHERE id = ?", (id_,))
 
     def _combine_tags(self, id_: int) -> None:
         """Set ``tags`` to the browser's tags plus the user's."""
@@ -500,7 +558,13 @@ class Store:
         sql = f"SELECT id, url FROM bookmarks WHERE {' OR '.join(conditions)} ORDER BY id"
         return self.db.execute(sql, params).fetchall()
 
-    def set_page(self, id_: int, text: str, page_title: str = "") -> None:
+    def set_page(self, id_: int, text: str, page_title: str = "", html: str = "") -> None:
+        """Record a successful fetch: the page text, and its readable copy if ``html``.
+
+        ``html`` must be safe to show, like ``extract.Page.html``. Without it,
+        an earlier copy is kept.
+        """
+        now = _now()
         with self.db:
             self.db.execute(
                 """
@@ -509,9 +573,39 @@ class Store:
                     title = CASE WHEN title = '' THEN ? ELSE title END
                 WHERE id = ?
                 """,
-                (_now(), page_title, id_),
+                (now, page_title, id_),
             )
             self._reindex(id_, text)
+            if html:
+                self.db.execute(
+                    "INSERT OR REPLACE INTO archive (id, saved_at, html) VALUES (?, ?, ?)",
+                    (id_, now, zlib.compress(html.encode("utf-8"), 6)),
+                )
+
+    def saved_copy(self, url: str) -> SavedCopy | None:
+        """What markfind kept of a page: its readable copy, or else its indexed text.
+
+        None if there's neither. Raises KeyError if the URL isn't in markfind.
+        """
+        row = self.db.execute(
+            """
+            SELECT b.title, a.saved_at, a.html, coalesce(f.body, '')
+            FROM bookmarks AS b
+            LEFT JOIN archive AS a ON a.id = b.id
+            LEFT JOIN bookmarks_fts AS f ON f.rowid = b.id
+            WHERE b.url = ?
+            """,
+            (url,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(url)
+        title, saved_at, compressed, text = row
+        if compressed is not None:
+            html = zlib.decompress(compressed).decode("utf-8")
+            return SavedCopy(url, title, saved_at, html, text, text_only=False)
+        if text:
+            return SavedCopy(url, title, None, text_as_html(text), text, text_only=True)
+        return None
 
     def set_error(self, id_: int, message: str, kind: str = "other") -> None:
         with self.db:
@@ -522,16 +616,16 @@ class Store:
 
     def failures(self, kinds: Iterable[str] | None = None) -> list[Failure]:
         """Bookmarks whose last fetch failed, optionally only some error kinds."""
-        sql = """
-            SELECT url, title, folder, error_kind, fetch_error, fetched_at
-            FROM bookmarks WHERE fetch_error IS NOT NULL
+        sql = f"""
+            SELECT url, title, folder, error_kind, fetch_error, fetched_at, {_has_copy("b")}
+            FROM bookmarks AS b WHERE fetch_error IS NOT NULL
         """
         params: list[str] = []
         if kinds is not None:
             params = list(kinds)
             sql += f" AND error_kind IN ({', '.join('?' * len(params))})"
         sql += " ORDER BY error_kind, folder, title, url"
-        return [Failure(*row) for row in self.db.execute(sql, params)]
+        return [Failure(*row[:6], saved=bool(row[6])) for row in self.db.execute(sql, params)]
 
     def search(
         self,
@@ -556,7 +650,8 @@ class Store:
             rows = self.db.execute(
                 f"""
                 SELECT b.url, b.title, b.folder,
-                       snippet(bookmarks_fts, 2, ?, ?, '...', 16), b.tags, b.note
+                       snippet(bookmarks_fts, 2, ?, ?, '...', 16), b.tags, b.note,
+                       {_has_copy("b")}
                 FROM bookmarks_fts
                 JOIN bookmarks AS b ON b.id = bookmarks_fts.rowid
                 WHERE bookmarks_fts MATCH ? AND bookmarks_fts.rowid IS NOT ?
@@ -571,7 +666,10 @@ class Store:
             if "fts5" in message or "syntax error" in message or "no such column" in message:
                 raise QueryError(message) from exc
             raise
-        return [SearchResult(*row[:4], tags=_split_tags(row[4]), note=row[5]) for row in rows]
+        return [
+            SearchResult(*row[:4], tags=_split_tags(row[4]), note=row[5], saved=bool(row[6]))
+            for row in rows
+        ]
 
     def similar(self, url: str, limit: int = 10, mark: tuple[str, str] = ("[", "]")) -> Similar:
         """Bookmarks most like the one with this URL: "more like this".
@@ -708,13 +806,16 @@ class Store:
             f"""
             SELECT url, title, folder, added_at, fetched_at,
                    CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END,
-                   tags, note
-            FROM bookmarks WHERE {in_folder} AND {with_tag}
+                   tags, note, {_has_copy("b")}
+            FROM bookmarks AS b WHERE {in_folder} AND {with_tag}
             ORDER BY folder, title, url
             """,
             (*folder_params, *tag_params),
         )
-        return [Record(*row[:6], tags=_split_tags(row[6]), note=row[7]) for row in rows]
+        return [
+            Record(*row[:6], tags=_split_tags(row[6]), note=row[7], saved=bool(row[8]))
+            for row in rows
+        ]
 
     def stats(self) -> Stats:
         row = self.db.execute(
@@ -732,7 +833,10 @@ class Store:
             GROUP BY error_kind ORDER BY count(*) DESC, error_kind
             """
         ).fetchall()
-        return Stats(*row, failed_by_kind=dict(by_kind))
+        copies, size = self.db.execute(
+            "SELECT count(*), coalesce(sum(length(html)), 0) FROM archive"
+        ).fetchone()
+        return Stats(*row, failed_by_kind=dict(by_kind), saved_copies=copies, saved_bytes=size)
 
     def pages(self) -> list[tuple[str, str, str, str]]:
         """(url, title, folder, page text) for every bookmark; text is '' if not fetched."""
