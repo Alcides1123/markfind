@@ -15,7 +15,7 @@ The code is small and has one module per stage, all in `src/markfind/`:
 | `formats.py` | Write bookmarks as HTML, Markdown, JSON or CSV for `export` |
 | `extract.py` | Turn HTML into the page's main text |
 | `store.py` | SQLite schema, migrations, the FTS5 index, search |
-| `duplicates.py` | URL normalization and duplicate grouping |
+| `duplicates.py` | URL normalization, duplicate grouping and near-duplicate text matching |
 | `cli.py` | The `markfind` command |
 
 Everything uses the Python standard library: `html.parser`, `urllib`,

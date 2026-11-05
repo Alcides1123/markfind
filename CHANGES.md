@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `markfind duplicates` also finds pages with nearly the same text, such as
+  an article saved from two sites or a page saved again after a small edit,
+  and shows how alike they are. `--similarity PCT` (default 80) sets how
+  alike; `--by similar` shows only these. They're left out of `--urls` unless
+  asked for, since they may be versions worth keeping. In the Python API,
+  `find_duplicates` and `Store.duplicates` include them by default, and
+  `Group` has a new `similarity` field (#37).
+
 - Firefox tags are imported, from `places.sqlite` (and so `markfind sync`)
   and from the `TAGS` attribute of Firefox's HTML export. They're searched
   with the rest of a bookmark and rank close to titles. New `markfind tags`
