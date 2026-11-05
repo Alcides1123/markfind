@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-05)
 
 - markfind now keeps a readable copy of every page it fetches, so a
   bookmark that dies isn't lost: `markfind archive URL` opens it in your
