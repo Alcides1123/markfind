@@ -73,7 +73,9 @@ python -m pip install -e .
 
 When indexing a page, markfind skips navigation, footers, sidebars, cookie
 banners and similar boilerplate, and keeps only the `<main>` / `<article>`
-content when a page has one, so searches match what the page is actually about.
+content when a page has one. Pages without those are judged by their text:
+unlabelled menus and link lists around the block holding the page's prose
+are left out. Either way, searches match what the page is actually about.
 
 Fetching is polite: markfind sends at most one request at a time to each
 site, waits `--delay` seconds between them, and spreads the work across sites

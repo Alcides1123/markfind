@@ -154,10 +154,26 @@ banners and footers, and every page would match words like "home" or
    example. State classes such as `has-sidebar` or `is-menu-open` are
    ignored too.
 3. **Prefers the main content.** If the page has `<main>` or `<article>` with
-   at least 30 words, only that text is kept. Otherwise the whole page, minus
-   the boilerplate above, is used. The 30-word minimum stops a short teaser in
-   `<main>` from hiding the rest of the page.
-4. **Never empties a page by mistake.** If the rules above leave under 30
+   at least 30 words, only that text is kept. The 30-word minimum stops a
+   short teaser in `<main>` from hiding the rest of the page.
+4. **Otherwise finds the content block by its text.** Many pages have no
+   `<main>`, and their menus aren't labelled either: just a `<div>` of links.
+   Each `div`, `section` and `td` gets a score:
+   - the words of *prose* directly inside it, meaning text outside links;
+   - plus half the score of each block directly inside it, so an article
+     written as a run of `<div>` paragraphs adds up in their parent;
+   - scaled by the share of the block's words that aren't link text, so
+     link lists score low.
+
+   Starting from the best-scoring block, markfind moves out to its parent
+   until the block holds at least 80% of the page's prose, and keeps only
+   that block's text. Dropping real text hurts a search index more than an
+   extra menu does, so this is cautious: it removes menus, link lists, tag
+   clouds and small bits like a copyright line, but a page whose prose is
+   spread over several blocks (two columns, an article plus a long aside) is
+   kept whole. If the block would be the whole page or under 30 words,
+   nothing changes.
+5. **Never empties a page by mistake.** If the rules above leave under 30
    words and remove more than 90% of the visible text, a wrapper element was
    probably misjudged. In that case all the visible text is indexed instead,
    still without scripts and styles.
@@ -165,6 +181,8 @@ banners and footers, and every page would match words like "home" or
 Skipping is depth-counted per tag name, so nested `<div>`s inside a skipped
 `<div class="sidebar">` are handled. Void elements such as `<input
 class="nav-search">` and self-closing tags never start a skip.
+Missing end tags are common in old table layouts (`<td>a<td>b`), so a new
+`<td>` closes an open one, and `</tr>` and `</table>` close any left open.
 
 ## The index
 
