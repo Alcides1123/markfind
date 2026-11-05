@@ -186,8 +186,12 @@ def test_cli_tag(store, capsys):
     assert "nope: you haven't added this tag" in err
 
     assert run(capsys, "--db", db, "tag", B) == (0, "no tags\n", "")
-    code, _, err = run(capsys, "--db", db, "tag", B, "--remove")
-    assert code == 2 and "--remove needs" in err
+    with pytest.raises(SystemExit):  # --remove needs at least one tag
+        cli.main(["--db", db, "tag", B, "--remove"])
+    capsys.readouterr()
+    # Adding and removing in one go: the tags to add come first.
+    code, out, _ = run(capsys, "--db", db, "tag", A, "new", "--remove", "Lang")
+    assert (code, out) == (0, "your tags: new\nfrom your browser: rust\n")
     code, _, err = run(capsys, "--db", db, "tag", "https://missing.example/", "x")
     assert code == 2 and "is not in markfind" in err
 
@@ -207,7 +211,7 @@ def test_cli_note(store, capsys):
     code, out, _ = run(capsys, "--db", db, "search", "errata")
     assert code == 0 and "   note: check the errata\n" in out
 
-    code, _, err = run(capsys, "--db", db, "note", A, "--clear", "text")
+    code, _, err = run(capsys, "--db", db, "note", A, "text", "--clear")
     assert code == 2 and "--clear takes no text" in err
     assert run(capsys, "--db", db, "note", A, "--clear") == (0, "", "")
     assert run(capsys, "--db", db, "note", A)[0] == 1

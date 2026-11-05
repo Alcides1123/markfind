@@ -319,14 +319,12 @@ def cmd_tags(store: Store, args: argparse.Namespace) -> int:
 
 
 def cmd_tag(store: Store, args: argparse.Namespace) -> int:
-    if args.remove and not args.tags:
-        print("error: --remove needs the tags to remove", file=sys.stderr)
-        return 2
+    removed: tuple[str, ...] = ()
     try:
-        if args.remove:
-            removed = store.remove_tags(args.url, args.tags)
-        elif args.tags:
+        if args.tags:
             store.add_tags(args.url, args.tags)
+        if args.remove:
+            removed = store.remove_tags(args.url, args.remove)
         current = store.bookmark_tags(args.url)
     except KeyError:
         return _not_in_markfind(args.url)
@@ -335,7 +333,7 @@ def cmd_tag(store: Store, args: argparse.Namespace) -> int:
     if args.remove:
         gone = {tag.lower() for tag in removed}
         from_browser = {tag.lower() for tag in current.browser}
-        for tag in clean_tags(args.tags):
+        for tag in clean_tags(args.remove):
             if tag.lower() in gone:
                 continue
             if tag.lower() in from_browser:
@@ -653,7 +651,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
     p.add_argument("tags", nargs="*", metavar="TAG", help="tags to add")
     p.add_argument(
-        "--remove", action="store_true", help="remove these tags instead (only ones you added)"
+        "--remove",
+        nargs="+",
+        metavar="TAG",
+        help="remove these tags (only ones you added)",
     )
     p.set_defaults(func=cmd_tag)
 

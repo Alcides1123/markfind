@@ -377,7 +377,7 @@ without tags keeps the ones it has.
 ## tag
 
 ```text
-markfind tag URL [TAG ...] [--remove]
+markfind tag URL [TAG ...] [--remove TAG ...]
 ```
 
 Adds your own tags to a bookmark, or removes ones you added. Without tags,
@@ -395,7 +395,7 @@ from your browser: sqlite
 
 | Option | Meaning |
 |---|---|
-| `--remove` | Remove the given tags instead of adding them. |
+| `--remove TAG ...` | Remove these tags. Tags to add go before it: `markfind tag URL new --remove old`. |
 
 Your tags work everywhere imported ones do: `search --tag`, `list --tag`,
 `export --tag`, [`tags`](#tags) and the web UI. They're kept apart from the
