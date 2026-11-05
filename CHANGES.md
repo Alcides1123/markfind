@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Documented that markfind indexes and saves copies of pages marked
+  `noindex` or `noarchive`: those directives are for public search engines,
+  and markfind is a private index of pages you chose to keep (#50).
+
 ## 0.2.0 (2026-11-05)
 
 - markfind now keeps a readable copy of every page it fetches, so a

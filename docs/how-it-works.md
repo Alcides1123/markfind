@@ -178,6 +178,15 @@ banners and footers, and every page would match words like "home" or
    probably misjudged. In that case all the visible text is indexed instead,
    still without scripts and styles.
 
+**Robots directives are ignored, on purpose.** `<meta name="robots"
+content="noindex">` (or the `X-Robots-Tag` header) asks public search engines
+not to list a page, and `noarchive` asks them not to show a cached copy.
+markfind isn't a search engine anyone else can query: it's a private index of
+pages you chose to bookmark, on your own machine. So it indexes those pages
+and keeps a [saved copy](#saved-copies) like any other. Leaving them out would
+hide pages you saved yourself, such as a private wiki page or an
+unlisted document, from the one search meant to find them.
+
 Skipping is depth-counted per tag name, so nested `<div>`s inside a skipped
 `<div class="sidebar">` are handled. Void elements such as `<input
 class="nav-search">` and self-closing tags never start a skip.

@@ -116,3 +116,17 @@ def test_falls_back_to_all_text_when_filtering_removes_nearly_everything():
         <script>ignored()</script></div><p>tail</p></body>"""
     )
     assert page.text == f"Title {LONG} tail"
+
+
+def test_robots_meta_tags_are_ignored():
+    # noindex and noarchive ask public search engines not to list or cache a
+    # page. markfind is a private index of pages you chose to keep, so it
+    # indexes them and saves a copy anyway (#50).
+    page = extract_text(
+        f"""<html><head><title>Private notes</title>
+        <meta name="robots" content="noindex, nofollow, noarchive"></head>
+        <body><main><p>{LONG}</p></main></body></html>"""
+    )
+    assert page.title == "Private notes"
+    assert page.text == LONG
+    assert page.html == f"<div><p>{LONG}</p></div>"
