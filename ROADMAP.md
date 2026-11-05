@@ -9,7 +9,7 @@ Each item has an issue with the details, and a rough estimate.
 | #47 | Index PDF bookmarks (optional `pypdf` dependency) | 6 h |
 | #48 | Tune search ranking with a set of real queries | 5 h |
 | #49 | Group bookmarks into topics automatically (`markfind topics`) | 8 h |
-| #50 | Decide how to treat pages marked `noindex` | 1.5 h |
+| #50 | ~~Decide how to treat pages marked `noindex`~~ (done) | 1.5 h |
 | #51 | Publish to PyPI, with a release workflow | 3 h |
 | #52 | Run CI on macOS and check Safari support on a real Mac | 2 h |
 | #53 | Browser tests for the web interface | 4 h |
@@ -23,8 +23,8 @@ The sections below list everything by theme, done and planned.
       pollute results
 - [x] Score unmarked `<div>` blocks by text density for pages without
       `<main>` / `<article>` (#39)
-- [ ] Respect `<meta name="robots" content="noindex">`? (decide: it's a personal
-      index, but be explicit about it) (#50)
+- [x] Respect `<meta name="robots" content="noindex">`? Decided: no, it's a
+      personal index; documented in How it works (#50)
 - [ ] Index PDF bookmarks (optional dependency) (#47)
 - [x] Re-fetch pages older than N days: `markfind fetch --older-than 90d`
 - [x] Retry failed fetches: `markfind fetch --failed`
