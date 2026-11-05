@@ -146,20 +146,28 @@ def test_reimport_keeps_or_replaces_tags(store):
 
 def test_migration_adds_tags_to_existing_index(tmp_path):
     path = tmp_path / "db.sqlite"
-    with Store(path) as store:
-        store.add_bookmarks([Bookmark("https://a.example/", "Alpha", "Dev")])
-        store.set_page(1, "words about compilers")
-    # Turn it back into a version 3 database: no tags anywhere.
+    # A version 3 database, exactly as the previous release created it: the
+    # trailing comment matters, since ADD COLUMN edits that definition.
     db = sqlite3.connect(path)
     db.executescript(
         """
-        CREATE VIRTUAL TABLE old_fts USING fts5(
+        CREATE TABLE bookmarks (
+            id INTEGER PRIMARY KEY,
+            url TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL DEFAULT '',
+            folder TEXT NOT NULL DEFAULT '',
+            added_at TEXT,
+            fetched_at TEXT,
+            fetch_error TEXT,
+            error_kind TEXT,  -- one of fetch.ERROR_KINDS when fetch_error is set
+            source TEXT  -- file the bookmark was last imported from, for pruning
+        );
+        CREATE VIRTUAL TABLE bookmarks_fts USING fts5(
             title, url, body, folder, tokenize = 'porter unicode61 remove_diacritics 2');
-        INSERT INTO old_fts (rowid, title, url, body, folder)
-            SELECT rowid, title, url, body, folder FROM bookmarks_fts;
-        DROP TABLE bookmarks_fts;
-        ALTER TABLE old_fts RENAME TO bookmarks_fts;
-        ALTER TABLE bookmarks DROP COLUMN tags;
+        INSERT INTO bookmarks (id, url, title, folder, fetched_at)
+            VALUES (1, 'https://a.example/', 'Alpha', 'Dev', '2026-11-01T00:00:00+00:00');
+        INSERT INTO bookmarks_fts (rowid, title, url, body, folder)
+            VALUES (1, 'Alpha', 'https://a.example/', 'words about compilers', 'Dev');
         PRAGMA user_version = 3;
         """
     )
@@ -167,6 +175,8 @@ def test_migration_adds_tags_to_existing_index(tmp_path):
 
     with Store(path) as store:
         assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
+        columns = [row[1] for row in store.db.execute("PRAGMA table_info(bookmarks)")]
+        assert columns[-2:] == ["source", "tags"]
         assert [r.url for r in store.search('"compilers"')] == ["https://a.example/"]
         store.add_bookmarks([Bookmark("https://a.example/", "Alpha", "Dev", tags=("lang",))])
         assert [r.url for r in store.search('"lang"')] == ["https://a.example/"]
