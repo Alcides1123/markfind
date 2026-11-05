@@ -181,6 +181,18 @@ class QueryError(Exception):
     """The search query is not valid FTS5 syntax."""
 
 
+# How SQLite words errors in an FTS5 query, as opposed to database errors:
+# 'a AND' -> "fts5: syntax error near ...", 'nosuch:x' -> "no such column",
+# '"open' -> "unterminated string", '*' -> "unknown special query".
+_QUERY_ERRORS = (
+    "fts5",
+    "syntax error",
+    "no such column",
+    "unterminated string",
+    "unknown special query",
+)
+
+
 @dataclass(frozen=True)
 class SearchResult:
     url: str
@@ -663,7 +675,7 @@ class Store:
             ).fetchall()
         except sqlite3.OperationalError as exc:
             message = str(exc)
-            if "fts5" in message or "syntax error" in message or "no such column" in message:
+            if any(sign in message for sign in _QUERY_ERRORS):
                 raise QueryError(message) from exc
             raise
         return [

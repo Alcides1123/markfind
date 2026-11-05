@@ -21,6 +21,8 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.15"]
+# Browser tests for the web interface (tests_browser/); see docs/development.md.
+browser = ["pytest>=8", "playwright>=1.40"]
 
 [project.scripts]
 markfind = "markfind.cli:main"

@@ -114,3 +114,14 @@ def test_query_quoting(store):
     assert len(store.search(to_fts_query("full-text primer"))) == 1
     with pytest.raises(QueryError):
         store.search("full-text AND")
+
+
+@pytest.mark.parametrize(
+    "query", ['"unbalanced', '"', "*", "a AND", "(x", "x)", "nosuch:x", "-x", "x OR OR y"]
+)
+def test_every_kind_of_bad_query_is_a_query_error(store, query):
+    # Each is a different SQLite message; all must reach the user as
+    # "invalid query", not as a crash.
+    store.add_bookmarks([Bookmark("https://a.example/", "x y")])
+    with pytest.raises(QueryError):
+        store.search(query)
