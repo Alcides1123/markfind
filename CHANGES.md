@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The web UI shows each result's tags. Click one, or pick it from the new
+  tag menu, to filter by it; with the search box empty, that lists every
+  bookmark with the tag. `/api/search` takes `tag`, and `/api/tags` lists
+  the tags (#41).
+
 - Pages without `<main>` or `<article>` are now judged by their text: the
   block holding most of the page's prose is kept, and unlabelled menus,
   link lists and similar chrome around it are left out of the index. It

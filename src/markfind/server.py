@@ -149,6 +149,7 @@ class _Handler(BaseHTTPRequestHandler):
             "/api/search": self._search,
             "/api/similar": self._similar,
             "/api/folders": self._folders,
+            "/api/tags": self._tags,
             "/api/broken": self._broken,
             "/api/stats": self._stats,
         }
@@ -167,15 +168,21 @@ class _Handler(BaseHTTPRequestHandler):
         text = params.get("q", "").strip()
         limit = _limit(params)
         raw = params.get("raw") == "1"
+        folder = params.get("folder") or None
+        tag = params.get("tag") or None
         if not text:
-            self._send_json({"query": text, "results": []})
+            # A tag on its own lists every bookmark with it, like `list --tag`.
+            records = []
+            if tag:
+                with self._store() as store:
+                    records = store.records(folder, tag=tag)[: _limit(params, MAX_LIMIT)]
+            results = [_result(SearchResult(r.url, r.title, r.folder, "", r.tags)) for r in records]
+            self._send_json({"query": text, "results": results})
             return
         query = text if raw else to_fts_query(text)
         with self._store() as store:
             try:
-                results = store.search(
-                    query, limit=limit, mark=MARK, folder=params.get("folder") or None
-                )
+                results = store.search(query, limit=limit, mark=MARK, folder=folder, tag=tag)
             except QueryError as exc:
                 self._send_json({"error": f"invalid query: {exc}"}, HTTPStatus.BAD_REQUEST)
                 return
@@ -185,6 +192,11 @@ class _Handler(BaseHTTPRequestHandler):
         with self._store() as store:
             folders = store.folders()
         self._send_json({"folders": [{"path": path, "count": n} for path, n in folders]})
+
+    def _tags(self, params: dict[str, str]) -> None:
+        with self._store() as store:
+            tags = store.tags()
+        self._send_json({"tags": [{"tag": tag, "count": n} for tag, n in tags]})
 
     def _similar(self, params: dict[str, str]) -> None:
         url = params.get("url", "")

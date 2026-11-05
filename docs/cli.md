@@ -585,14 +585,19 @@ markfind is serving /home/you/.markfind.sqlite at http://127.0.0.1:8737/ (Ctrl+C
 | `--port PORT` | Port. Default `8737`. |
 | `--open` | Open the page in your default browser. |
 
-The page has two views:
+The page has three views:
 
 - **Search:** results update as you type. Matching words are highlighted, and
   each result shows its folder and URL and opens in a new tab. Tick *Advanced
   syntax* to use the [`--raw` query syntax](#raw-queries---raw). The folder
   menu next to the search box limits results to one folder and its
-  subfolders; it lists every folder with how many bookmarks it holds. The
-  query and folder are kept in the page address, so you can bookmark or share
+  subfolders; it lists every folder with how many bookmarks it holds.
+
+  Each result also shows its [tags](#tags). Click one, or pick it from the
+  tag menu, to see only bookmarks with that tag. With the search box empty,
+  that lists every bookmark with the tag (up to 100), like `markfind list
+  --tag`. The tag menu only appears if some bookmark has a tag. The query,
+  folder and tag are kept in the page address, so you can bookmark or share
   a search.
 - **Similar:** each result has a *Similar* button that shows the bookmarks
   most like it, the same as [`markfind similar`](#similar). The words the

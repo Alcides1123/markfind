@@ -108,6 +108,78 @@ def test_folders_and_search_in_folder(server):
     assert len(data["results"]) == 2
 
 
+def test_tags_empty_without_tagged_bookmarks(server):
+    assert get_json(server, "/api/tags") == (200, {"tags": []})
+    # A tag nobody has: no results, not an error.
+    assert get_json(server, "/api/search?tag=nope") == (200, {"query": "", "results": []})
+
+
+@pytest.fixture
+def tagged_server(tmp_path):
+    path = tmp_path / "tagged.sqlite"
+    with Store(path) as store:
+        store.add_bookmarks(
+            [
+                Bookmark("https://a.example/", "Alpha", "Dev", tags=("python", "Search")),
+                Bookmark("https://b.example/", "Beta", "Old", tags=("search",)),
+                Bookmark("https://c.example/", "Gamma", "Dev", tags=()),
+            ]
+        )
+        for id_, _ in store.pending():
+            store.set_page(id_, "ranking with bm25")
+    srv = MarkfindServer(path, "127.0.0.1", 0)
+    thread = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
+    thread.start()
+    yield srv
+    srv.shutdown()
+    srv.server_close()
+
+
+def test_tags_and_tag_filter(tagged_server):
+    status, data = get_json(tagged_server, "/api/tags")
+    assert status == 200
+    assert data == {"tags": [{"tag": "Search", "count": 2}, {"tag": "python", "count": 1}]}
+
+    _, data = get_json(tagged_server, "/api/search?q=ranking")
+    assert {r["url"]: r["tags"] for r in data["results"]} == {
+        "https://a.example/": ["python", "Search"],
+        "https://b.example/": ["search"],
+        "https://c.example/": [],
+    }
+    _, data = get_json(tagged_server, "/api/search?q=ranking&tag=SEARCH")
+    assert sorted(r["url"] for r in data["results"]) == ["https://a.example/", "https://b.example/"]
+    _, data = get_json(tagged_server, "/api/search?q=ranking&tag=search&folder=Old")
+    assert [r["url"] for r in data["results"]] == ["https://b.example/"]
+
+
+def test_tag_without_query_lists_its_bookmarks(tagged_server):
+    _, data = get_json(tagged_server, "/api/search?tag=search")
+    assert data["query"] == ""
+    assert data["results"] == [
+        {
+            "url": "https://a.example/",
+            "title": "Alpha",
+            "folder": "Dev",
+            "snippet": "",
+            "tags": ["python", "Search"],
+        },
+        {
+            "url": "https://b.example/",
+            "title": "Beta",
+            "folder": "Old",
+            "snippet": "",
+            "tags": ["search"],
+        },
+    ]
+    _, data = get_json(tagged_server, "/api/search?tag=search&limit=1")
+    assert len(data["results"]) == 1
+    _, data = get_json(tagged_server, "/api/search?tag=search&folder=Old")
+    assert [r["url"] for r in data["results"]] == ["https://b.example/"]
+    # A folder alone still needs a query.
+    _, data = get_json(tagged_server, "/api/search?folder=Dev")
+    assert data["results"] == []
+
+
 def test_similar(server):
     status, data = get_json(server, "/api/similar?url=https%3A%2F%2Fsqlite.org%2Ffts5.html")
     assert status == 200

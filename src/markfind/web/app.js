@@ -7,6 +7,8 @@
 const MARK_START = "\u0002";
 const MARK_END = "\u0003";
 const DEBOUNCE_MS = 150;
+// Bookmarks listed for a tag with an empty search box (the server's maximum).
+const TAG_LIST_LIMIT = 100;
 
 const $ = (id) => document.getElementById(id);
 
@@ -84,6 +86,7 @@ function updateAddress() {
   if (q) params.set("q", q);
   if ($("raw").checked) params.set("raw", "1");
   if ($("folder").value) params.set("folder", $("folder").value);
+  if ($("tag").value) params.set("tag", $("tag").value);
   if (similarTo) params.set("similar", similarTo);
   const qs = params.toString();
   history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
@@ -95,6 +98,18 @@ function similarButton(url) {
   button.title = "Find bookmarks like this one";
   button.addEventListener("click", () => showSimilar(url));
   return button;
+}
+
+function tagButtons(tags) {
+  const box = el("span", "tags");
+  for (const tag of tags) {
+    const button = el("button", "tag", tag);
+    button.type = "button";
+    button.title = `Show bookmarks tagged ${tag}`;
+    button.addEventListener("click", () => filterByTag(tag));
+    box.append(button);
+  }
+  return box;
 }
 
 function renderResults(results) {
@@ -110,6 +125,7 @@ function renderResults(results) {
     const meta = el("div", "meta");
     meta.append(el("span", "url", r.url));
     if (r.folder) meta.append(el("span", "folder", r.folder));
+    if (r.tags && r.tags.length) meta.append(tagButtons(r.tags));
     meta.append(similarButton(r.url));
     item.append(meta);
 
@@ -125,16 +141,19 @@ function renderResults(results) {
 async function runSearch() {
   const q = $("q").value.trim();
   const raw = $("raw").checked;
+  const tag = $("tag").value;
 
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (raw) params.set("raw", "1");
   if ($("folder").value) params.set("folder", $("folder").value);
+  if (tag) params.set("tag", tag);
+  if (!q && tag) params.set("limit", String(TAG_LIST_LIMIT));
   const qs = params.toString();
   updateAddress();
 
   if (searchController) searchController.abort();
-  if (!q) {
+  if (!q && !tag) {
     renderResults([]);
     $("search-status").textContent = "";
     return;
@@ -146,9 +165,16 @@ async function runSearch() {
     const data = await getJSON(`/api/search?${qs}`, searchController.signal);
     renderResults(data.results);
     status.classList.remove("error");
-    status.textContent =
-      data.results.length === 0 ? "No matches." :
-      data.results.length === 1 ? "1 match" : `${data.results.length} matches`;
+    const n = data.results.length;
+    if (q) {
+      status.textContent = n === 0 ? "No matches." : n === 1 ? "1 match" : `${n} matches`;
+    } else {
+      // A tag with an empty search box lists everything with that tag.
+      status.textContent =
+        n === 0 ? `No bookmarks tagged ${tag}.` :
+        n >= TAG_LIST_LIMIT ? `First ${n} bookmarks tagged ${tag}; type to narrow them down` :
+        n === 1 ? `1 bookmark tagged ${tag}` : `${n} bookmarks tagged ${tag}`;
+    }
   } catch (err) {
     if (err.name === "AbortError") return;
     renderResults([]);
@@ -192,6 +218,48 @@ async function loadFolders(wanted) {
     }
     menu.value = wanted;
   }
+}
+
+// --- tags ------------------------------------------------------------------
+
+function tagOption(tag) {
+  const option = el("option", null, tag);
+  option.value = tag;
+  return option;
+}
+
+// Fill the tag menu, shown only if some bookmark has a tag. `wanted` is the
+// tag to select (from the page address).
+async function loadTags(wanted) {
+  const menu = $("tag");
+  try {
+    const data = await getJSON("/api/tags");
+    for (const t of data.tags) {
+      const option = tagOption(t.tag);
+      option.textContent = `${t.tag} (${t.count})`;
+      menu.append(option);
+    }
+  } catch {
+    // Searching still works without the menu.
+  }
+  if (wanted) selectTag(wanted);
+  menu.hidden = menu.options.length < 2;
+}
+
+// Tags match ignoring case, so pick the menu's spelling when there is one.
+function selectTag(tag) {
+  const menu = $("tag");
+  let option = [...menu.options].find((o) => o.value && o.value.toLowerCase() === tag.toLowerCase());
+  if (!option) menu.append((option = tagOption(tag)));
+  menu.value = option.value;
+  menu.hidden = false;
+}
+
+function filterByTag(tag) {
+  selectTag(tag);
+  leaveSimilar();
+  runSearch();
+  $("q").focus();
 }
 
 // --- keyboard navigation through results -------------------------------------
@@ -338,10 +406,12 @@ function init() {
     leaveSimilar();
     runSearch();
   });
-  $("folder").addEventListener("change", () => {
-    leaveSimilar();
-    runSearch();
-  });
+  for (const menu of [$("folder"), $("tag")]) {
+    menu.addEventListener("change", () => {
+      leaveSimilar();
+      runSearch();
+    });
+  }
   $("back").addEventListener("click", () => {
     leaveSimilar();
     runSearch();
@@ -373,10 +443,10 @@ function init() {
 
   loadStats();
   $("q").focus();
-  // The folder must be in the menu before the first search reads it.
-  loadFolders(params.get("folder")).then(() => {
+  // The folder and tag must be in their menus before the first search reads them.
+  Promise.all([loadFolders(params.get("folder")), loadTags(params.get("tag"))]).then(() => {
     if (params.get("similar")) showSimilar(params.get("similar"));
-    else if ($("q").value) runSearch();
+    else if ($("q").value || $("tag").value) runSearch();
   });
 }
 
