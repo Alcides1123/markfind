@@ -4,8 +4,8 @@
 
 - [x] Main-content extraction, so navigation menus and footers don't
       pollute results
-- [ ] Score unmarked `<div>` blocks by text density for pages without
-      `<main>` / `<article>`
+- [x] Score unmarked `<div>` blocks by text density for pages without
+      `<main>` / `<article>` (#39)
 - [ ] Respect `<meta name="robots" content="noindex">`? (decide: it's a personal
       index, but be explicit about it)
 - [ ] Index PDF bookmarks (optional dependency)
