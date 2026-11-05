@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Pages without `<main>` or `<article>` are now judged by their text: the
+  block holding most of the page's prose is kept, and unlabelled menus,
+  link lists and similar chrome around it are left out of the index. It
+  keeps the whole page unless one block holds at least 80% of the prose.
+  Pages already fetched change when they're next fetched; `markfind fetch
+  --all` re-fetches everything now (#39).
+
 - `markfind duplicates` also finds pages with nearly the same text, such as
   an article saved from two sites or a page saved again after a small edit,
   and shows how alike they are. `--similarity PCT` (default 80) sets how
