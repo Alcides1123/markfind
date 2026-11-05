@@ -174,9 +174,9 @@ def test_migration_adds_tags_to_existing_index(tmp_path):
     db.close()
 
     with Store(path) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         columns = [row[1] for row in store.db.execute("PRAGMA table_info(bookmarks)")]
-        assert columns[-2:] == ["source", "tags"]
+        assert columns[-5:] == ["source", "tags", "browser_tags", "my_tags", "note"]
         assert [r.url for r in store.search('"compilers"')] == ["https://a.example/"]
         store.add_bookmarks([Bookmark("https://a.example/", "Alpha", "Dev", tags=("lang",))])
         assert [r.url for r in store.search('"lang"')] == ["https://a.example/"]

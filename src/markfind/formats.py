@@ -20,7 +20,7 @@ _NETSCAPE_HEADER = """<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <H1>Bookmarks</H1>
 """
 
-FIELDS = ("url", "title", "folder", "added_at", "fetched_at", "status", "tags")
+FIELDS = ("url", "title", "folder", "added_at", "fetched_at", "status", "tags", "note")
 
 
 def _unix(timestamp: str | None) -> str:
@@ -61,6 +61,9 @@ def to_html(records: list[Record]) -> str:
             tags = f' TAGS="{escape(",".join(r.tags))}"' if r.tags else ""
             title = escape(r.title or r.url, quote=False)
             lines.append(f'{indent}<DT><A HREF="{escape(r.url)}"{date}{tags}>{title}</A>')
+            if r.note:
+                # A bookmark's description; Firefox imports and exports it this way.
+                lines.append(f"{indent}<DD>{escape(' '.join(r.note.split()), quote=False)}")
         for name, child in node.folders.items():
             lines.append(f"{indent}<DT><H3>{escape(name, quote=False)}</H3>")
             lines.append(f"{indent}<DL><p>")
@@ -85,13 +88,17 @@ def _md_link(record: Record) -> str:
     return f"[{_md_text(record.title or record.url)}]({url})"
 
 
+def _md_note(record: Record) -> str:
+    return f" — {_md_text(record.note)}" if record.note else ""
+
+
 def to_markdown(records: list[Record], ranked: bool = False) -> str:
     """A reading list: one section per folder, or a numbered list if ``ranked``."""
     if ranked:
         lines = ["# Bookmarks", ""]
         for n, r in enumerate(records, 1):
             folder = f" · *{_md_text(r.folder)}*" if r.folder else ""
-            lines.append(f"{n}. {_md_link(r)}{folder}")
+            lines.append(f"{n}. {_md_link(r)}{folder}{_md_note(r)}")
         return "\n".join(lines) + "\n"
 
     lines = ["# Bookmarks"]
@@ -102,7 +109,7 @@ def to_markdown(records: list[Record], ranked: bool = False) -> str:
             lines.append("")
             if r.folder:  # bookmarks outside any folder come first, without a heading
                 lines += [f"## {_md_text(r.folder.replace('/', ' / '))}", ""]
-        lines.append(f"- {_md_link(r)}")
+        lines.append(f"- {_md_link(r)}{_md_note(r)}")
     return "\n".join(lines) + "\n"
 
 

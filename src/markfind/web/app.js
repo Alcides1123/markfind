@@ -129,6 +129,12 @@ function renderResults(results) {
     meta.append(similarButton(r.url));
     item.append(meta);
 
+    if (r.note) {
+      const note = el("p", "note", r.note);
+      note.title = "Your note";
+      item.append(note);
+    }
+
     if (r.snippet) {
       const snippet = el("p", "snippet");
       snippet.append(highlighted(r.snippet));

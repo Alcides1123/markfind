@@ -78,6 +78,7 @@ def _result(r: SearchResult) -> dict[str, object]:
         "folder": r.folder,
         "snippet": r.snippet,
         "tags": list(r.tags),
+        "note": r.note,
     }
 
 
@@ -176,7 +177,9 @@ class _Handler(BaseHTTPRequestHandler):
             if tag:
                 with self._store() as store:
                     records = store.records(folder, tag=tag)[: _limit(params, MAX_LIMIT)]
-            results = [_result(SearchResult(r.url, r.title, r.folder, "", r.tags)) for r in records]
+            results = [
+                _result(SearchResult(r.url, r.title, r.folder, "", r.tags, r.note)) for r in records
+            ]
             self._send_json({"query": text, "results": results})
             return
         query = text if raw else to_fts_query(text)

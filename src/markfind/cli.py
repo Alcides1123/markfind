@@ -23,7 +23,7 @@ from .fetch import (
     fetch_page,
 )
 from .formats import FORMATS, to_markdown
-from .importers import load_file
+from .importers import clean_tags, load_file
 from .server import DEFAULT_HOST, DEFAULT_PORT, serve
 from .store import Failure, QueryError, Store, to_fts_query
 
@@ -243,16 +243,19 @@ def cmd_search(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def _not_in_markfind(url: str) -> int:
+    print(
+        f"error: {url} is not in markfind; copy the URL from 'markfind search' or 'markfind list'",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def cmd_similar(store: Store, args: argparse.Namespace) -> int:
     try:
         found = store.similar(args.url, limit=args.limit, mark=_mark())
     except KeyError:
-        print(
-            f"error: {args.url} is not in markfind; copy the URL from"
-            " 'markfind search' or 'markfind list'",
-            file=sys.stderr,
-        )
-        return 2
+        return _not_in_markfind(args.url)
 
     print(f"Similar to: {found.title or args.url}")
     if not found.results:
@@ -269,6 +272,18 @@ def _mark() -> tuple[str, str]:
     return ("\033[1m", "\033[0m") if sys.stdout.isatty() else ("[", "]")
 
 
+# How much of a note search results show.
+NOTE_PREVIEW = 120
+
+
+def _shorten(text: str, width: int) -> str:
+    """The text on one line, cut at a word boundary to at most ``width`` characters."""
+    text = " ".join(text.split())
+    if len(text) <= width:
+        return text
+    return text[: width - 3].rsplit(" ", 1)[0] + "..."
+
+
 def _print_results(results: list) -> None:
     for n, r in enumerate(results, 1):
         print(f"{n}. {r.title or r.url}")
@@ -277,6 +292,8 @@ def _print_results(results: list) -> None:
             print(f"   folder: {r.folder}")
         if r.tags:
             print(f"   tags: {', '.join(r.tags)}")
+        if r.note:
+            print(f"   note: {_shorten(r.note, NOTE_PREVIEW)}")
         if r.snippet:
             print(f"   {r.snippet}")
 
@@ -290,11 +307,66 @@ def cmd_list(store: Store, args: argparse.Namespace) -> int:
 def cmd_tags(store: Store, args: argparse.Namespace) -> int:
     tags = store.tags()
     if not tags:
-        print("no tags; markfind reads tags from Firefox (sync, places.sqlite or an HTML export)")
+        print(
+            "no tags; add some with 'markfind tag URL TAG', or import them from Firefox"
+            " (sync, places.sqlite or an HTML export)"
+        )
         return 0
     width = len(str(tags[0][1]))
     for tag, count in tags:
         print(f"{count:>{width}}  {tag}")
+    return 0
+
+
+def cmd_tag(store: Store, args: argparse.Namespace) -> int:
+    removed: tuple[str, ...] = ()
+    try:
+        if args.tags:
+            store.add_tags(args.url, args.tags)
+        if args.remove:
+            removed = store.remove_tags(args.url, args.remove)
+        current = store.bookmark_tags(args.url)
+    except KeyError:
+        return _not_in_markfind(args.url)
+
+    status = 0
+    if args.remove:
+        gone = {tag.lower() for tag in removed}
+        from_browser = {tag.lower() for tag in current.browser}
+        for tag in clean_tags(args.remove):
+            if tag.lower() in gone:
+                continue
+            if tag.lower() in from_browser:
+                print(f"{tag}: comes from your browser; remove it there", file=sys.stderr)
+            else:
+                print(f"{tag}: you haven't added this tag", file=sys.stderr)
+            status = 1
+
+    if current.mine:
+        print(f"your tags: {', '.join(current.mine)}")
+    if current.browser:
+        print(f"from your browser: {', '.join(current.browser)}")
+    if not current.all:
+        print("no tags")
+    return status
+
+
+def cmd_note(store: Store, args: argparse.Namespace) -> int:
+    text = " ".join(args.text).strip()
+    if args.clear and text:
+        print("error: --clear takes no text", file=sys.stderr)
+        return 2
+    try:
+        if args.clear or text:
+            store.set_note(args.url, text)
+            return 0
+        note = store.note(args.url)
+    except KeyError:
+        return _not_in_markfind(args.url)
+    if not note:
+        print("no note on this bookmark", file=sys.stderr)
+        return 1
+    print(note)
     return 0
 
 
@@ -560,9 +632,44 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser(
         "tags",
         help="list tags and how many bookmarks have each",
-        description="Lists the tags imported from Firefox, most used first.",
+        description=(
+            "Lists tags, most used first: those imported from Firefox and those"
+            " added with 'markfind tag'."
+        ),
     )
     p.set_defaults(func=cmd_tags)
+
+    p = sub.add_parser(
+        "tag",
+        help="add or remove your own tags on a bookmark",
+        description=(
+            "Add tags to a bookmark, or remove ones you added. Your tags are kept apart"
+            " from the browser's, so importing never changes them. Without tags, shows"
+            " the bookmark's tags."
+        ),
+    )
+    p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
+    p.add_argument("tags", nargs="*", metavar="TAG", help="tags to add")
+    p.add_argument(
+        "--remove",
+        nargs="+",
+        metavar="TAG",
+        help="remove these tags (only ones you added)",
+    )
+    p.set_defaults(func=cmd_tag)
+
+    p = sub.add_parser(
+        "note",
+        help="write a searchable note on a bookmark",
+        description=(
+            "Write a note on a bookmark, replacing any earlier one. Notes are searchable"
+            " and shown in search results. Without text, shows the note."
+        ),
+    )
+    p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
+    p.add_argument("text", nargs="*", help="the note; quotes are optional")
+    p.add_argument("--clear", action="store_true", help="remove the note")
+    p.set_defaults(func=cmd_note)
 
     p = sub.add_parser(
         "duplicates",

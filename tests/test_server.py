@@ -162,6 +162,7 @@ def test_tag_without_query_lists_its_bookmarks(tagged_server):
             "folder": "Dev",
             "snippet": "",
             "tags": ["python", "Search"],
+            "note": "",
         },
         {
             "url": "https://b.example/",
@@ -169,6 +170,7 @@ def test_tag_without_query_lists_its_bookmarks(tagged_server):
             "folder": "Old",
             "snippet": "",
             "tags": ["search"],
+            "note": "",
         },
     ]
     _, data = get_json(tagged_server, "/api/search?tag=search&limit=1")

@@ -200,6 +200,16 @@ a.link:hover { text-decoration: underline; }
 
 .meta .tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 
+/* The user's own note on a bookmark, set with `markfind note`. */
+.note {
+  margin: 6px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+  font-size: 14px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 /* A bookmark's tags; clicking one filters by it. */
 .tag {
   font: inherit;
