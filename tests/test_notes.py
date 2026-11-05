@@ -196,7 +196,7 @@ def test_cli_tag(store, capsys):
     assert code == 2 and "is not in markfind" in err
 
     code, out, _ = run(capsys, "--db", db, "tags")
-    assert out.split() == ["1", "Lang", "1", "rust"]  # yours count too; ties by name
+    assert out.split() == ["1", "new", "1", "rust"]  # yours count too; ties by name
 
 
 def test_cli_note(store, capsys):
