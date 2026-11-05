@@ -1,8 +1,9 @@
 """Find bookmarks saved more than once.
 
 Two bookmarks are duplicates if their URLs are the same once cosmetic
-differences are removed (``canonical_url``), or if their fetched pages have
-the same text.
+differences are removed (``canonical_url``), if their fetched pages have the
+same text, or if the texts are nearly the same (``similarity``): mostly the
+same sentences, as with a page saved again after a small edit.
 """
 
 from __future__ import annotations
@@ -42,6 +43,18 @@ _INDEX_PAGES = ("index.html", "index.htm", "index.php", "default.aspx")
 
 MIN_WORDS = 50  # shorter pages are too likely to be error or login pages
 
+# Near duplicates: the share of 5-word phrases two texts have in common.
+SHINGLE_WORDS = 5
+MIN_SIMILARITY = 0.8
+# A phrase on more pages than this is boilerplate ("all rights reserved"); it
+# says little about which pages match and makes finding candidates quadratic.
+_COMMON_PHRASE = 20
+# Candidates are found from the phrases whose hash is a multiple of this:
+# the same phrases on every page, so near duplicates still share many.
+_SAMPLE = 8
+
+REASONS = ("url", "text", "similar")
+
 
 @dataclass(frozen=True)
 class Entry:
@@ -54,8 +67,11 @@ class Entry:
 class Group:
     """Bookmarks that are the same page. The preferred one comes first."""
 
-    reason: str  # "url" or "text"
+    reason: str  # "url", "text" or "similar"
     entries: list[Entry]
+    # For "similar": the lowest similarity between two pages that put
+    # the group together, from 0 to 1. None for the other reasons.
+    similarity: float | None = None
 
     @property
     def title(self) -> str:
@@ -113,6 +129,87 @@ def text_key(text: str, min_words: int = MIN_WORDS) -> str | None:
     return hashlib.sha256(" ".join(words).encode("utf-8")).hexdigest()
 
 
+def _words(text: str) -> list[str]:
+    return text.lower().split()
+
+
+def shingles(text: str, size: int = SHINGLE_WORDS) -> frozenset[int]:
+    """Hashes of every run of ``size`` consecutive words, ignoring case and spacing.
+
+    Hashes are only comparable within one Python process.
+    """
+    words = _words(text)
+    # Shorter tails end the zip early: the last phrase ends at the last word.
+    return frozenset(map(hash, zip(*(words[i:] for i in range(size)), strict=False)))
+
+
+def similarity(a: frozenset[int], b: frozenset[int]) -> float:
+    """Jaccard similarity of two shingle sets: shared phrases / all phrases."""
+    if not a or not b:
+        return 0.0
+    shared = len(a & b)
+    return shared / (len(a) + len(b) - shared)
+
+
+def near_pairs(
+    sets: list[frozenset[int]], min_similarity: float = MIN_SIMILARITY
+) -> list[tuple[int, int, float]]:
+    """Pairs ``(i, j, similarity)`` of sets at least ``min_similarity`` alike, i < j.
+
+    Only pairs sharing an uncommon phrase from a fixed sample are compared, so
+    the work grows with the number of real matches rather than with every pair
+    of pages. Each candidate's similarity is then computed exactly.
+    """
+    pages_with: dict[int, list[int]] = {}
+    for i, phrases in enumerate(sets):
+        # Short pages have few sampled phrases; use all of theirs.
+        sample = (
+            [phrase for phrase in phrases if not phrase % _SAMPLE]
+            if len(phrases) >= 50 * _SAMPLE
+            else phrases
+        )
+        for phrase in sample:
+            pages_with.setdefault(phrase, []).append(i)
+
+    candidates: set[tuple[int, int]] = set()
+    for pages in pages_with.values():
+        if 1 < len(pages) <= _COMMON_PHRASE:
+            for n, i in enumerate(pages):
+                candidates.update((i, j) for j in pages[n + 1 :])
+
+    pairs = []
+    for i, j in sorted(candidates):
+        small, large = sorted((len(sets[i]), len(sets[j])))
+        if small < min_similarity * large:
+            continue  # Jaccard can't exceed small / large
+        score = similarity(sets[i], sets[j])
+        if score >= min_similarity:
+            pairs.append((i, j, score))
+    return pairs
+
+
+def _components(n: int, pairs: list[tuple[int, int, float]]) -> list[tuple[list[int], float]]:
+    """Connected groups of indexes, each with the lowest pair score in it."""
+    parent = list(range(n))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, j, _ in pairs:
+        parent[root(i)] = root(j)
+    members: dict[int, list[int]] = {}
+    lowest: dict[int, float] = {}
+    for i, _, score in pairs:
+        r = root(i)
+        lowest[r] = min(lowest.get(r, 1.0), score)
+    for i in range(n):
+        members.setdefault(root(i), []).append(i)
+    return [(m, lowest[r]) for r, m in members.items() if len(m) > 1]
+
+
 def _preference(entry: Entry) -> tuple[bool, int, str]:
     # https first, then the shortest URL (fewest leftovers), then alphabetical.
     return (not entry.url.lower().startswith("https:"), len(entry.url), entry.url)
@@ -120,24 +217,31 @@ def _preference(entry: Entry) -> tuple[bool, int, str]:
 
 def find_duplicates(
     pages: Iterable[tuple[str, str, str, str]],
-    by: tuple[str, ...] = ("url", "text"),
+    by: tuple[str, ...] = REASONS,
     min_words: int = MIN_WORDS,
+    min_similarity: float = MIN_SIMILARITY,
 ) -> list[Group]:
     """Groups of duplicate bookmarks from (url, title, folder, page text) rows.
 
-    Same-URL groups come first. A same-text group is left out when its
-    bookmarks are already one same-URL group.
+    Same-URL groups come first, then same-text, then nearly-same-text groups.
+    A group is left out when its bookmarks are already one group of an
+    earlier kind.
     """
     by_url: dict[str, list[Entry]] = {}
     by_text: dict[str, list[Entry]] = {}
     canonical: dict[str, str] = {}
+    texts: dict[str, str] = {}  # url -> text key, for pages long enough
+    near: list[tuple[Entry, frozenset[int]]] = []
     for url, title, folder, text in pages:
         entry = Entry(url, title, folder)
         canonical[url] = canonical_url(url)
         by_url.setdefault(canonical[url], []).append(entry)
         key = text_key(text or "", min_words)
         if key:
+            texts[url] = key
             by_text.setdefault(key, []).append(entry)
+            if "similar" in by:
+                near.append((entry, shingles(text)))
 
     groups = []
     if "url" in by:
@@ -149,4 +253,21 @@ def find_duplicates(
             already_grouped = "url" in by and len({canonical[e.url] for e in entries}) == 1
             if len(entries) > 1 and not already_grouped:
                 groups.append(Group("text", sorted(entries, key=_preference)))
-    return sorted(groups, key=lambda g: (g.reason != "url", g.title.lower(), g.entries[0].url))
+    if "similar" in by:
+        # Identical texts are one page here, so each near match shows once.
+        first: dict[str, int] = {}
+        unique = []
+        for entry, phrases in near:
+            if texts[entry.url] not in first:
+                first[texts[entry.url]] = len(unique)
+                unique.append((entry, phrases))
+        pairs = near_pairs([phrases for _, phrases in unique], min_similarity)
+        for members, score in _components(len(unique), pairs):
+            keys = {texts[unique[i][0].url] for i in members}
+            entries = [e for e, _ in near if texts[e.url] in keys]
+            urls = {canonical[e.url] for e in entries}
+            if "url" in by and len(urls) == 1:
+                continue  # one page saved under several URLs, already shown
+            groups.append(Group("similar", sorted(entries, key=_preference), score))
+    order = {reason: n for n, reason in enumerate(REASONS)}
+    return sorted(groups, key=lambda g: (order[g.reason], g.title.lower(), g.entries[0].url))

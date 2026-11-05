@@ -65,7 +65,7 @@ python -m pip install -e .
 | `markfind similar URL [-n N]` | "More like this": bookmarks most like this one, and the distinctive words they share. |
 | `markfind list [--folder PATH] [--tag TAG]` | List bookmarks, optionally one folder and its subfolders, or one tag. |
 | `markfind tags` | Tags imported from Firefox, with how many bookmarks have each. |
-| `markfind duplicates [--by url\|text] [--urls]` | Bookmarks saved more than once: the same URL apart from `http`/`https`, `www.`, tracking parameters and the like, or the same page text. The cleanest URL is starred; `--urls` prints the other copies. |
+| `markfind duplicates [--by url\|text\|similar] [--urls]` | Bookmarks saved more than once: the same URL apart from `http`/`https`, `www.`, tracking parameters and the like, the same page text, or nearly the same text (`--similarity`, default 80%). The cleanest URL is starred; `--urls` prints the other copies. |
 | `markfind broken [--all] [--kind KIND] [--urls \| --delete]` | Bookmarks that are likely dead (HTTP 404/410 or unknown host). `--all` shows every failure, grouped by kind; `--kind` picks kinds (`gone`, `dns`, `blocked`, `server`, `http`, `timeout`, `connection`, `ssl`, `unsupported`, `empty`, `other`); `--urls` prints bare URLs for scripting; `--delete` removes the listed bookmarks from markfind after asking. |
 | `markfind export [-f FORMAT] [-o FILE] [--skip-dead]` | Write bookmarks as an HTML file any browser can import, or as Markdown, JSON or CSV. `--skip-dead` leaves out dead links; `--folder` and `--query` pick which bookmarks. |
 | `markfind stats` | How many bookmarks are indexed, failed (by kind), or pending. |

@@ -68,7 +68,8 @@ def test_groups_and_preferred_url():
             page("https://blog.example/post?id=42", "My post", "Old", ARTICLE),
             page("https://blog.example/2021/05/my-post", "My post", "Blog", ARTICLE),
             page("https://unique.example/", "Unique", "", ARTICLE + " Different."),
-        ]
+        ],
+        by=("url", "text"),  # "Unique" is a near duplicate; see test_near_duplicates.py
     )
     assert [(g.reason, g.title, [e.url for e in g.entries]) for g in groups] == [
         (

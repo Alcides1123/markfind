@@ -371,7 +371,7 @@ URL from a browser without tags keeps the ones it has.
 ## duplicates
 
 ```text
-markfind duplicates [--by url|text] [--urls]
+markfind duplicates [--by url|text|similar] [--similarity PCT] [--urls]
 ```
 
 Finds bookmarks you saved more than once, so you can tidy them up in your
@@ -393,14 +393,22 @@ Same page text (2):
   * https://git-scm.com/book/en/v2/Git-Branching-Rebasing
     https://git-scm.com/book/en/v2/Git-Branching-Rebasing?ref=blog  folder: Old
 
+Nearly the same page text (1):
+  Release notes (94% the same)
+  * https://example.com/blog/release-notes
+    https://news.example.org/2026/release-notes  folder: Reading
+
 * = cleanest URL. 4 extra copies; 'markfind duplicates --urls' lists them.
+Nearly-same pages may differ in ways that matter, such as a newer version; check them before deleting.
 ```
 
 | Option | Meaning |
 |---|---|
 | `--by url` | Only bookmarks whose URLs match. |
 | `--by text` | Only bookmarks whose page text matches. |
-| `--urls` | Print only the extra copies' URLs (everything but the starred one), one per line. |
+| `--by similar` | Only bookmarks whose page text is nearly the same. |
+| `--similarity PCT` | How alike two pages must be to count as nearly the same, from 1 to 100 (default 80). |
+| `--urls` | Print only the extra copies' URLs (everything but the starred one), one per line. Nearly-same pages are included only with `--by similar`. |
 
 **Same page, different URLs.** URLs are compared after removing differences
 that don't change the page:
@@ -423,6 +431,24 @@ other URLs that serve the same content. Pages under 50 words are skipped, so
 short error and login pages don't all match each other. Pages behind a login
 can still look identical, so check the group before deleting anything. A group
 already shown under *Same page, different URLs* isn't repeated.
+
+**Nearly the same page text.** Pages that share most of their text: the
+same article on two sites with different footers, a page saved again after
+a small update, a reprint. markfind compares every run of 5 consecutive
+words (ignoring case and spacing) and shows how many of the two pages' runs
+they share. One changed word alters 5 of them, so the default of 80% allows a
+few edits but not a different page on the same topic. Lower `--similarity`
+to find looser matches, raise it for stricter ones. The 50-word minimum
+applies here too. Identical copies count as one page, so a group can include
+a *Same page text* group plus its near copies.
+
+Nearly-same pages may be versions worth keeping, such as a newer edition of
+the docs, so there's no "extra copies" count for them, and `--urls` leaves
+them out unless you ask with `--by similar`.
+
+Comparing every pair of pages would be slow with thousands of bookmarks, so
+markfind first looks for pages sharing a rare 5-word phrase and compares
+only those. 3,000 fetched pages of 800 words take about 3 seconds.
 
 **Which one is starred.** In each group the cleanest URL comes first: `https`
 before `http`, then the shortest.

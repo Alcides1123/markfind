@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .duplicates import Group, find_duplicates
+from .duplicates import MIN_SIMILARITY, REASONS, Group, find_duplicates
 from .fetch import EMPTY_MESSAGE
 from .importers import Bookmark, clean_tags
 
@@ -615,6 +615,8 @@ class Store:
             """
         ).fetchall()
 
-    def duplicates(self, by: tuple[str, ...] = ("url", "text")) -> list[Group]:
+    def duplicates(
+        self, by: tuple[str, ...] = REASONS, min_similarity: float = MIN_SIMILARITY
+    ) -> list[Group]:
         """Bookmarks saved more than once; see ``markfind.duplicates``."""
-        return find_duplicates(self.pages(), by=by)
+        return find_duplicates(self.pages(), by=by, min_similarity=min_similarity)

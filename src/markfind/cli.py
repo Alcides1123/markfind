@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import __version__
 from .browsers import BROWSERS, find_sources
+from .duplicates import MIN_SIMILARITY, REASONS
 from .extract import Page
 from .fetch import (
     DEAD_KINDS,
@@ -80,6 +81,16 @@ def cmd_export(store: Store, args: argparse.Namespace) -> int:
         return 1
     print(f"exported {len(records)} bookmarks to {args.output}", file=sys.stderr)
     return 0
+
+
+def _percent(text: str) -> float:
+    try:
+        value = float(text.rstrip("%"))
+    except ValueError:
+        value = -1
+    if not 1 <= value <= 100:
+        raise argparse.ArgumentTypeError(f"invalid percentage {text!r} (1 to 100)")
+    return value
 
 
 def parse_duration(text: str) -> timedelta:
@@ -288,11 +299,17 @@ def cmd_tags(store: Store, args: argparse.Namespace) -> int:
 
 
 def cmd_duplicates(store: Store, args: argparse.Namespace) -> int:
-    groups = store.duplicates(by=(args.by,) if args.by else ("url", "text"))
+    groups = store.duplicates(
+        by=(args.by,) if args.by else REASONS, min_similarity=args.similarity / 100
+    )
 
     if args.urls:
         seen = set()
         for group in groups:
+            # Nearly-same pages may be different versions worth keeping, so
+            # they're listed only when asked for by name.
+            if group.reason == "similar" and args.by != "similar":
+                continue
             for entry in group.entries[1:]:
                 if entry.url not in seen:
                     seen.add(entry.url)
@@ -302,7 +319,11 @@ def cmd_duplicates(store: Store, args: argparse.Namespace) -> int:
     if not groups:
         print("no duplicates found")
         return 0
-    headings = {"url": "Same page, different URLs", "text": "Same page text"}
+    headings = {
+        "url": "Same page, different URLs",
+        "text": "Same page text",
+        "similar": "Nearly the same page text",
+    }
     for reason, heading in headings.items():
         section = [g for g in groups if g.reason == reason]
         if not section:
@@ -311,16 +332,25 @@ def cmd_duplicates(store: Store, args: argparse.Namespace) -> int:
             print()
         print(f"{heading} ({len(section)}):")
         for group in section:
-            print(f"  {group.title}")
+            if group.similarity is not None:
+                print(f"  {group.title} ({group.similarity:.0%} the same)")
+            else:
+                print(f"  {group.title}")
             width = min(max(len(e.url) for e in group.entries), 70)
             for n, entry in enumerate(group.entries):
                 line = f"  {'*' if n == 0 else ' '} {entry.url:<{width}}"
                 if entry.folder:
                     line += f"  folder: {entry.folder}"
                 print(line.rstrip())
-    copies = sum(len(g.entries) - 1 for g in groups)
+    copies = sum(len(g.entries) - 1 for g in groups if g.reason != "similar")
     print()
-    print(f"* = cleanest URL. {copies} extra copies; 'markfind duplicates --urls' lists them.")
+    if copies:
+        print(f"* = cleanest URL. {copies} extra copies; 'markfind duplicates --urls' lists them.")
+    if any(g.reason == "similar" for g in groups):
+        print(
+            "Nearly-same pages may differ in ways that matter, such as a newer version;"
+            " check them before deleting."
+        )
     return 0
 
 
@@ -539,17 +569,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="find bookmarks saved more than once",
         description=(
             "Find bookmarks that are the same page: the same URL apart from cosmetic"
-            " differences (http/https, www., tracking parameters, ...), or the same"
-            " page text."
+            " differences (http/https, www., tracking parameters, ...), the same"
+            " page text, or nearly the same page text."
         ),
     )
+    p.add_argument("--by", choices=REASONS, help="only this kind of duplicate (default: all three)")
     p.add_argument(
-        "--by", choices=("url", "text"), help="only this kind of duplicate (default: both)"
+        "--similarity",
+        type=_percent,
+        default=round(MIN_SIMILARITY * 100),
+        metavar="PCT",
+        help="how much text pages must share to be nearly the same"
+        f" (default: {MIN_SIMILARITY * 100:.0f}%%)",
     )
     p.add_argument(
         "--urls",
         action="store_true",
-        help="print only the extra copies' URLs (all but the starred one), one per line",
+        help="print only the extra copies' URLs (all but the starred one), one per line;"
+        " nearly-same pages only with --by similar",
     )
     p.set_defaults(func=cmd_duplicates)
 
