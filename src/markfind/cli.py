@@ -50,7 +50,7 @@ def default_db_path() -> Path:
 
 
 def cmd_export(store: Store, args: argparse.Namespace) -> int:
-    records = store.records(args.folder)
+    records = store.records(args.folder, tag=args.tag)
     if args.query:
         query = args.query if args.raw else to_fts_query(args.query)
         try:
@@ -218,7 +218,9 @@ def cmd_search(store: Store, args: argparse.Namespace) -> int:
     text = " ".join(args.query)
     query = text if args.raw else to_fts_query(text)
     try:
-        results = store.search(query, limit=args.limit, mark=_mark(), folder=args.folder)
+        results = store.search(
+            query, limit=args.limit, mark=_mark(), folder=args.folder, tag=args.tag
+        )
     except QueryError as exc:
         print(f"error: invalid query: {exc}", file=sys.stderr)
         return 2
@@ -262,13 +264,26 @@ def _print_results(results: list) -> None:
         print(f"   {r.url}")
         if r.folder:
             print(f"   folder: {r.folder}")
+        if r.tags:
+            print(f"   tags: {', '.join(r.tags)}")
         if r.snippet:
             print(f"   {r.snippet}")
 
 
 def cmd_list(store: Store, args: argparse.Namespace) -> int:
-    for url, title, folder in store.list_bookmarks(args.folder):
+    for url, title, folder in store.list_bookmarks(args.folder, tag=args.tag):
         print(f"{folder or '-'}\t{title or '-'}\t{url}")
+    return 0
+
+
+def cmd_tags(store: Store, args: argparse.Namespace) -> int:
+    tags = store.tags()
+    if not tags:
+        print("no tags; markfind reads tags from Firefox (sync, places.sqlite or an HTML export)")
+        return 0
+    width = len(str(tags[0][1]))
+    for tag, count in tags:
+        print(f"{count:>{width}}  {tag}")
     return 0
 
 
@@ -492,6 +507,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
     )
     p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
+    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
     p.set_defaults(func=cmd_search)
 
     p = sub.add_parser(
@@ -508,7 +524,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("list", help="list bookmarks")
     p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
+    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
     p.set_defaults(func=cmd_list)
+
+    p = sub.add_parser(
+        "tags",
+        help="list tags and how many bookmarks have each",
+        description="Lists the tags imported from Firefox, most used first.",
+    )
+    p.set_defaults(func=cmd_tags)
 
     p = sub.add_parser(
         "duplicates",
@@ -543,6 +567,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-f", "--format", choices=tuple(FORMATS), default="html", help="default: html")
     p.add_argument("-o", "--output", type=Path, help="file to write (default: standard output)")
     p.add_argument("--folder", help="only this folder and its subfolders")
+    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
     p.add_argument(
         "--query", metavar="WORDS", help="only bookmarks matching this search, best first"
     )

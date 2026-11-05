@@ -19,7 +19,7 @@
 ## 0.3 — More sources
 
 - [x] Import directly from Firefox's `places.sqlite` (read-only copy) (#7)
-- [ ] Import Firefox tags as searchable keywords
+- [x] Import Firefox tags as searchable keywords (#35)
 - [x] Auto-detect browser profile locations on Windows, macOS and Linux (#13)
 - [x] `markfind sync`: import + fetch new bookmarks in one step (#13)
 - [x] Remove bookmarks that disappeared from the browser export (`--prune`) (#13)

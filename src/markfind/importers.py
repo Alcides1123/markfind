@@ -16,6 +16,7 @@ import plistlib
 import shutil
 import sqlite3
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
@@ -36,8 +37,8 @@ _FIREFOX_ROOTS = {
     "mobile______": "Mobile Bookmarks",
 }
 _FIREFOX_ROOT_GUID = "root________"
-# Tags are stored as bookmarks inside this hidden folder; they duplicate the
-# real bookmarks, so the whole subtree is skipped.
+# Tags are stored as bookmarks inside this hidden folder: one folder per tag,
+# holding a copy of each tagged bookmark. They are read as tags, not bookmarks.
 _FIREFOX_TAGS_GUID = "tags________"
 # Safari's built-in folders: internal title -> the name Safari shows.
 _SAFARI_FOLDERS = {
@@ -55,6 +56,9 @@ class Bookmark:
     title: str = ""
     folder: str = ""
     added_at: datetime | None = None
+    # None when the source can't hold tags, so importing it keeps the tags a
+    # bookmark already has; () when the source says it has none.
+    tags: tuple[str, ...] | None = None
 
 
 def _is_web_url(url: str) -> bool:
@@ -63,6 +67,18 @@ def _is_web_url(url: str) -> bool:
 
 def _clean(text: str) -> str:
     return " ".join(text.split())
+
+
+def clean_tags(tags: Iterable[str]) -> tuple[str, ...]:
+    """Tags without extra spaces, commas, blanks or repeats (ignoring case), in order."""
+    seen: set[str] = set()
+    result = []
+    for tag in tags:
+        tag = _clean(tag.replace(",", " "))
+        if tag and tag.lower() not in seen:
+            seen.add(tag.lower())
+            result.append(tag)
+    return tuple(result)
 
 
 def _unix_time(value: str | None) -> datetime | None:
@@ -124,6 +140,9 @@ class _NetscapeParser(HTMLParser):
                 self._folders.pop()
         elif tag == "a" and self._link is not None:
             url = (self._link.get("href") or "").strip()
+            # Firefox writes TAGS="a,b" on tagged bookmarks only, so a missing
+            # attribute can't tell "no tags" from "this browser has no tags".
+            tags = self._link.get("tags")
             if _is_web_url(url):
                 self.bookmarks.append(
                     Bookmark(
@@ -131,6 +150,7 @@ class _NetscapeParser(HTMLParser):
                         title=_clean("".join(self._link_text)),
                         folder="/".join(f for f in self._folders if f),
                         added_at=_unix_time(self._link.get("add_date")),
+                        tags=clean_tags(tags.split(",")) if tags is not None else None,
                     )
                 )
             self._link = None
@@ -225,6 +245,22 @@ def _read_firefox_db(db: sqlite3.Connection) -> list[Bookmark]:
         paths[folder_id] = result
         return result
 
+    tags: dict[str, list[str]] = {}  # url -> tag names
+    tag_folders = {
+        id_: title
+        for id_, (parent, title, _) in folders.items()
+        if folders.get(parent, (0, "", ""))[2] == _FIREFOX_TAGS_GUID
+    }
+    for parent, url in db.execute(
+        """
+        SELECT b.parent, p.url FROM moz_bookmarks AS b JOIN moz_places AS p ON p.id = b.fk
+        WHERE b.type = ? ORDER BY b.parent, b.position
+        """,
+        (_FIREFOX_TYPE_BOOKMARK,),
+    ):
+        if parent in tag_folders and url:
+            tags.setdefault(url.strip(), []).append(tag_folders[parent])
+
     bookmarks: list[Bookmark] = []
     rows = db.execute(
         """
@@ -249,6 +285,7 @@ def _read_firefox_db(db: sqlite3.Connection) -> list[Bookmark]:
                 title=_clean(title),
                 folder=folder,
                 added_at=_firefox_time(date_added),
+                tags=tuple(sorted(clean_tags(tags.get(url, ())), key=str.lower)),
             )
         )
     return bookmarks

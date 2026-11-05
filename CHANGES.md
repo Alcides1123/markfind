@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Firefox tags are imported, from `places.sqlite` (and so `markfind sync`)
+  and from the `TAGS` attribute of Firefox's HTML export. They're searched
+  with the rest of a bookmark and rank close to titles. New `markfind tags`
+  lists them; `search`, `list` and `export` take `--tag`; search results,
+  `/api/search` and every export format include them, and an HTML export
+  keeps them for Firefox. Importing from a browser without tags keeps a
+  bookmark's tags. The database moves to schema version 4, which rebuilds
+  the search index once (#35).
+
 - `markfind broken --delete` removes the bookmarks the report lists from
   markfind, after asking (`--yes` skips the question). It follows `--kind`
   and `--all`, and leaves the browser alone. New `Store.delete(urls)` in the

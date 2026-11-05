@@ -20,7 +20,7 @@ _NETSCAPE_HEADER = """<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <H1>Bookmarks</H1>
 """
 
-FIELDS = ("url", "title", "folder", "added_at", "fetched_at", "status")
+FIELDS = ("url", "title", "folder", "added_at", "fetched_at", "status", "tags")
 
 
 def _unix(timestamp: str | None) -> str:
@@ -57,8 +57,10 @@ def to_html(records: list[Record]) -> str:
         for r in node.records:
             added = _unix(r.added_at)
             date = f' ADD_DATE="{added}"' if added else ""
+            # The attribute Firefox writes, and reads back on import.
+            tags = f' TAGS="{escape(",".join(r.tags))}"' if r.tags else ""
             title = escape(r.title or r.url, quote=False)
-            lines.append(f'{indent}<DT><A HREF="{escape(r.url)}"{date}>{title}</A>')
+            lines.append(f'{indent}<DT><A HREF="{escape(r.url)}"{date}{tags}>{title}</A>')
         for name, child in node.folders.items():
             lines.append(f"{indent}<DT><H3>{escape(name, quote=False)}</H3>")
             lines.append(f"{indent}<DL><p>")
@@ -104,19 +106,24 @@ def to_markdown(records: list[Record], ranked: bool = False) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _rows(records: list[Record]) -> list[dict[str, str | None]]:
-    return [{field: getattr(r, field) for field in FIELDS} for r in records]
+def _rows(records: list[Record], tags: Callable[[tuple[str, ...]], object]) -> list[dict]:
+    rows = []
+    for r in records:
+        row: dict[str, object] = {field: getattr(r, field) for field in FIELDS}
+        row["tags"] = tags(r.tags)
+        rows.append(row)
+    return rows
 
 
 def to_json(records: list[Record]) -> str:
-    return json.dumps(_rows(records), indent=2, ensure_ascii=False) + "\n"
+    return json.dumps(_rows(records, list), indent=2, ensure_ascii=False) + "\n"
 
 
 def to_csv(records: list[Record]) -> str:
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=FIELDS)
     writer.writeheader()
-    writer.writerows(_rows(records))
+    writer.writerows(_rows(records, ",".join))
     return out.getvalue()
 
 
