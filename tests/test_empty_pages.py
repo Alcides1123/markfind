@@ -4,7 +4,7 @@ from markfind import cli
 from markfind.extract import Page
 from markfind.fetch import EMPTY_MESSAGE, EmptyPageError
 from markfind.importers import Bookmark
-from markfind.store import SCHEMA_VERSION, Store
+from markfind.store import MIGRATIONS, SCHEMA_VERSION, Store, _mark_empty_pages
 
 
 def test_migration_marks_only_pages_fetched_without_text(tmp_path):
@@ -22,7 +22,8 @@ def test_migration_marks_only_pages_fetched_without_text(tmp_path):
         store.set_page(2, "")  # how markfind 0.1 and 0.2 stored a page with no text
         store.set_error(4, "timed out", "timeout")
         # Pretend this database was last opened by a version before "empty".
-        store.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION - 1}")
+        version = MIGRATIONS.index(_mark_empty_pages)
+        store.db.execute(f"PRAGMA user_version = {version}")
         store.db.commit()
 
     with Store(path) as store:

@@ -10,7 +10,7 @@ markfind [--db PATH] COMMAND [options]
 | `--version` | Print the version and exit. |
 
 Commands: [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
-[`search`](#search) · [`similar`](#similar) · [`list`](#list) ·
+[`search`](#search) · [`similar`](#similar) · [`list`](#list) · [`tags`](#tags) ·
 [`duplicates`](#duplicates) · [`broken`](#broken) · [`export`](#export) ·
 [`stats`](#stats) · [`serve`](#serve)
 
@@ -215,17 +215,18 @@ Every failure is recorded with a **kind**. [`broken`](#broken) and
 ## search
 
 ```text
-markfind search [-n N] [--raw] [--folder PATH] WORD [WORD ...]
+markfind search [-n N] [--raw] [--folder PATH] [--tag TAG] WORD [WORD ...]
 ```
 
-Searches bookmark titles, URLs, folder paths and page text, and prints the
-best matches first.
+Searches bookmark titles, URLs, folder paths, [tags](#tags) and page text,
+and prints the best matches first.
 
 | Option | Meaning |
 |---|---|
 | `-n N`, `--limit N` | Show at most `N` results (default 20). |
 | `--raw` | Pass the query to SQLite FTS5 unchanged (see below). |
 | `--folder PATH` | Only bookmarks in this folder and its subfolders, e.g. `--folder "Bookmarks bar/Dev"`. `Dev` doesn't include a sibling folder named `Dev2`. |
+| `--tag TAG` | Only bookmarks with this tag, ignoring case. Whole tags only: `--tag py` doesn't match `python`. |
 
 ### Plain queries (default)
 
@@ -326,7 +327,7 @@ Exit codes:
 ## list
 
 ```text
-markfind list [--folder PATH]
+markfind list [--folder PATH] [--tag TAG]
 ```
 
 Prints every bookmark as tab-separated `folder`, `title` and `url`, sorted by
@@ -334,7 +335,36 @@ folder and then title. Empty fields are shown as `-`.
 
 `--folder PATH` limits the list to that folder and its subfolders. For
 example, `--folder "Bookmarks bar/Dev"` includes `Bookmarks bar/Dev/Python`
-but not `Bookmarks bar/Devices`.
+but not `Bookmarks bar/Devices`. `--tag TAG` lists only bookmarks with that
+tag.
+
+---
+
+## tags
+
+```text
+markfind tags
+```
+
+Lists every tag with the number of bookmarks that have it, most used first.
+Tags that differ only in case count as one.
+
+markfind reads tags from Firefox: from `places.sqlite` (what
+[`sync`](#sync) uses) and from the `TAGS` attribute of Firefox's HTML
+export. Chrome, Edge and Safari have no tags.
+
+Tags are searched like the rest of a bookmark, and a tag match ranks almost
+as high as a title match. To use them:
+
+```sh
+markfind search sqlite --tag databases   # only bookmarks tagged databases
+markfind search --raw 'tags:recipe'      # tag words only, with FTS5 syntax
+markfind list --tag to-read
+markfind export --tag to-read -f markdown
+```
+
+Re-importing a bookmark from Firefox replaces its tags. Importing the same
+URL from a browser without tags keeps the ones it has.
 
 ---
 
@@ -441,17 +471,17 @@ well, delete them there, or write a clean file with
 
 ```text
 markfind export [-f html|markdown|json|csv] [-o FILE]
-                [--folder PATH] [--query WORDS [--raw]] [--skip-dead]
+                [--folder PATH] [--tag TAG] [--query WORDS [--raw]] [--skip-dead]
 ```
 
 Writes bookmarks out, to standard output or to `FILE`.
 
 | Format | What you get |
 |---|---|
-| `html` (default) | A standard bookmark file with your folders and dates. Every browser can import it. |
+| `html` (default) | A standard bookmark file with your folders, dates and tags. Every browser can import it, and Firefox keeps the tags. |
 | `markdown` | A reading list: a heading per folder and `- [Title](url)` links. With `--query`, a numbered list in ranked order. |
-| `json` | A list of objects with `url`, `title`, `folder`, `added_at`, `fetched_at` and `status`. |
-| `csv` | The same fields as columns. Written with a byte-order mark when saved to a file, so Excel reads it as UTF-8. |
+| `json` | A list of objects with `url`, `title`, `folder`, `added_at`, `fetched_at`, `status` and `tags` (a list). |
+| `csv` | The same fields as columns, with tags separated by commas. Written with a byte-order mark when saved to a file, so Excel reads it as UTF-8. |
 
 `status` is `indexed`, `pending` (not fetched yet), or the
 [failure kind](#fetch) of the last fetch.
@@ -460,6 +490,7 @@ Writes bookmarks out, to standard output or to `FILE`.
 |---|---|
 | `-o FILE`, `--output FILE` | Write to `FILE` instead of standard output. |
 | `--folder PATH` | Only this folder and its subfolders. |
+| `--tag TAG` | Only bookmarks with this tag. |
 | `--query WORDS` | Only bookmarks matching this search, best match first. Quote it if it has several words. |
 | `--raw` | `--query` uses [FTS5 syntax](#raw-queries---raw). |
 | `--skip-dead` | Leave out bookmarks that are most likely dead for good: what [`broken`](#broken) lists by default (HTTP 404/410 or unknown host). Timeouts and other failures that may be temporary are kept. |

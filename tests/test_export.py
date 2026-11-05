@@ -91,7 +91,8 @@ def test_json_and_csv(db):
     rows = json.loads(to_json(records(db)))
     gone = next(r for r in rows if r["url"] == "https://gone.example/")
     assert gone["status"] == "gone" and gone["folder"] == "Bar" and gone["fetched_at"]
-    assert set(gone) == {"url", "title", "folder", "added_at", "fetched_at", "status"}
+    assert set(gone) == {"url", "title", "folder", "added_at", "fetched_at", "status", "tags"}
+    assert gone["tags"] == []
 
     table = list(csv.DictReader(io.StringIO(to_csv(records(db)))))
     assert len(table) == len(BOOKMARKS)
@@ -104,7 +105,7 @@ def test_empty():
     assert parse_netscape_html(to_html([])) == []
     assert to_markdown([]) == "# Bookmarks\n"
     assert to_json([]) == "[]\n"
-    assert to_csv([]).splitlines() == ["url,title,folder,added_at,fetched_at,status"]
+    assert to_csv([]).splitlines() == ["url,title,folder,added_at,fetched_at,status,tags"]
 
 
 def test_cli_skip_dead_to_file(db, tmp_path, capsys):

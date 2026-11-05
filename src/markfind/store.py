@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .duplicates import Group, find_duplicates
 from .fetch import EMPTY_MESSAGE
-from .importers import Bookmark
+from .importers import Bookmark, clean_tags
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS bookmarks (
@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS bookmarks (
     fetched_at TEXT,
     fetch_error TEXT,
     error_kind TEXT,  -- one of fetch.ERROR_KINDS when fetch_error is set
-    source TEXT  -- file the bookmark was last imported from, for pruning
+    source TEXT,  -- file the bookmark was last imported from, for pruning
+    tags TEXT NOT NULL DEFAULT ''  -- comma-separated
 );
 
 -- rowid matches bookmarks.id
@@ -34,9 +35,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_fts USING fts5(
     url,
     body,
     folder,
+    tags,
     tokenize = 'porter unicode61 remove_diacritics 2'
 );
 """
+
+# Must match the bookmarks_fts tokenizer, so words stem the same way.
+_TOKENIZER = "porter unicode61 remove_diacritics 2"
 
 
 def _add_error_kind(db: sqlite3.Connection) -> None:
@@ -65,17 +70,35 @@ def _mark_empty_pages(db: sqlite3.Connection) -> None:
     )
 
 
+def _add_tags(db: sqlite3.Connection) -> None:
+    columns = {row[1] for row in db.execute("PRAGMA table_info(bookmarks)")}
+    if "tags" not in columns:
+        db.execute("ALTER TABLE bookmarks ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+    fts_columns = [row[1] for row in db.execute("PRAGMA table_info(bookmarks_fts)")]
+    if "tags" not in fts_columns:
+        # FTS5 tables can't gain columns, so copy the index into a new one.
+        db.execute(
+            "CREATE VIRTUAL TABLE bookmarks_fts_new USING fts5("
+            f"title, url, body, folder, tags, tokenize = '{_TOKENIZER}')"
+        )
+        db.execute(
+            """
+            INSERT INTO bookmarks_fts_new (rowid, title, url, body, folder, tags)
+            SELECT rowid, title, url, body, folder, '' FROM bookmarks_fts
+            """
+        )
+        db.execute("DROP TABLE bookmarks_fts")
+        db.execute("ALTER TABLE bookmarks_fts_new RENAME TO bookmarks_fts")
+
+
 # Applied in order to databases whose PRAGMA user_version is lower than their
 # position + 1; SCHEMA always describes the latest version, so every migration
 # must also be a no-op on a freshly created database.
-MIGRATIONS = [_add_error_kind, _add_source, _mark_empty_pages]
+MIGRATIONS = [_add_error_kind, _add_source, _mark_empty_pages, _add_tags]
 SCHEMA_VERSION = len(MIGRATIONS)
 
-# bm25() weights, in bookmarks_fts column order: title, url, body, folder.
-RANK_WEIGHTS = (5.0, 1.0, 2.0, 1.0)
-
-# Must match the bookmarks_fts tokenizer, so words stem the same way.
-_TOKENIZER = "porter unicode61 remove_diacritics 2"
+# bm25() weights, in bookmarks_fts column order: title, url, body, folder, tags.
+RANK_WEIGHTS = (5.0, 1.0, 2.0, 1.0, 4.0)
 
 # similar(): words of 3+ letters or digits that start with a letter.
 _WORD = re.compile(r"[^\W\d_][^\W_]{2,}")
@@ -107,6 +130,7 @@ class SearchResult:
     title: str
     folder: str
     snippet: str
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -144,6 +168,7 @@ class Record:
     added_at: str | None
     fetched_at: str | None
     error_kind: str | None
+    tags: tuple[str, ...] = ()
 
     @property
     def status(self) -> str:
@@ -159,6 +184,17 @@ def _in_folder(folder: str | None, column: str = "folder") -> tuple[str, tuple[s
         return "1", ()
     escaped = folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"({column} = ? OR {column} LIKE ? ESCAPE '\\')", (folder, escaped + "/%")
+
+
+def _has_tag(tag: str | None, column: str = "tags") -> tuple[str, tuple[str, ...]]:
+    """An SQL condition matching bookmarks with this tag, ignoring case; true if no tag."""
+    if not tag or not tag.strip():
+        return "1", ()
+    return f"instr(',' || lower({column}) || ',', ',' || lower(?) || ',') > 0", (tag.strip(),)
+
+
+def _split_tags(value: str) -> tuple[str, ...]:
+    return tuple(value.split(",")) if value else ()
 
 
 def _now() -> str:
@@ -225,21 +261,25 @@ class Store:
                 row = self.db.execute(
                     "SELECT id FROM bookmarks WHERE url = ?", (bm.url,)
                 ).fetchone()
+                # None: the source has no tags, so keep the ones recorded.
+                tags = None if bm.tags is None else ",".join(clean_tags(bm.tags))
                 if row:
                     id_ = row[0]
                     self.db.execute(
                         """
-                        UPDATE bookmarks SET title = ?, folder = ?, source = coalesce(?, source)
+                        UPDATE bookmarks
+                        SET title = ?, folder = ?, source = coalesce(?, source),
+                            tags = coalesce(?, tags)
                         WHERE id = ?
                         """,
-                        (bm.title, bm.folder, source, id_),
+                        (bm.title, bm.folder, source, tags, id_),
                     )
                     updated += 1
                 else:
                     cursor = self.db.execute(
                         """
-                        INSERT INTO bookmarks (url, title, folder, added_at, source)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO bookmarks (url, title, folder, added_at, source, tags)
+                        VALUES (?, ?, ?, ?, ?, ?)
                         """,
                         (
                             bm.url,
@@ -247,6 +287,7 @@ class Store:
                             bm.folder,
                             bm.added_at.isoformat() if bm.added_at else None,
                             source,
+                            tags or "",
                         ),
                     )
                     id_ = cursor.lastrowid
@@ -298,8 +339,8 @@ class Store:
         self.db.execute("DELETE FROM bookmarks_fts WHERE rowid = ?", (id_,))
         self.db.execute(
             """
-            INSERT INTO bookmarks_fts (rowid, title, url, body, folder)
-            SELECT id, title, url, ?, folder FROM bookmarks WHERE id = ?
+            INSERT INTO bookmarks_fts (rowid, title, url, body, folder, tags)
+            SELECT id, title, url, ?, folder, tags FROM bookmarks WHERE id = ?
             """,
             (body, id_),
         )
@@ -370,34 +411,38 @@ class Store:
         mark: tuple[str, str] = ("[", "]"),
         exclude: int | None = None,
         folder: str | None = None,
+        tag: str | None = None,
     ) -> list[SearchResult]:
         """Run an FTS5 query, best matches first.
 
         ``exclude`` leaves out one bookmark id; ``folder`` keeps only that folder
-        and its subfolders.
+        and its subfolders; ``tag`` keeps only bookmarks with that tag.
         """
         if not query.strip():
             return []
         in_folder, folder_params = _in_folder(folder, "b.folder")
+        with_tag, tag_params = _has_tag(tag, "b.tags")
+        weights = ", ".join("?" * len(RANK_WEIGHTS))
         try:
             rows = self.db.execute(
                 f"""
                 SELECT b.url, b.title, b.folder,
-                       snippet(bookmarks_fts, 2, ?, ?, '...', 16)
+                       snippet(bookmarks_fts, 2, ?, ?, '...', 16), b.tags
                 FROM bookmarks_fts
                 JOIN bookmarks AS b ON b.id = bookmarks_fts.rowid
-                WHERE bookmarks_fts MATCH ? AND bookmarks_fts.rowid IS NOT ? AND {in_folder}
-                ORDER BY bm25(bookmarks_fts, ?, ?, ?, ?)
+                WHERE bookmarks_fts MATCH ? AND bookmarks_fts.rowid IS NOT ?
+                  AND {in_folder} AND {with_tag}
+                ORDER BY bm25(bookmarks_fts, {weights})
                 LIMIT ?
                 """,
-                (*mark, query, exclude, *folder_params, *RANK_WEIGHTS, limit),
+                (*mark, query, exclude, *folder_params, *tag_params, *RANK_WEIGHTS, limit),
             ).fetchall()
         except sqlite3.OperationalError as exc:
             message = str(exc)
             if "fts5" in message or "syntax error" in message or "no such column" in message:
                 raise QueryError(message) from exc
             raise
-        return [SearchResult(*row) for row in rows]
+        return [SearchResult(*row[:4], tags=_split_tags(row[4])) for row in rows]
 
     def similar(self, url: str, limit: int = 10, mark: tuple[str, str] = ("[", "]")) -> Similar:
         """Bookmarks most like the one with this URL: "more like this".
@@ -483,11 +528,29 @@ class Store:
             ).fetchall()
         return [(term, words[doc]) for doc, term in rows]
 
-    def list_bookmarks(self, folder: str | None = None) -> list[tuple[str, str, str]]:
-        """(url, title, folder) rows, optionally limited to a folder and its subfolders."""
-        condition, params = _in_folder(folder)
-        sql = f"SELECT url, title, folder FROM bookmarks WHERE {condition} ORDER BY folder, title"
-        return self.db.execute(sql, params).fetchall()
+    def list_bookmarks(
+        self, folder: str | None = None, tag: str | None = None
+    ) -> list[tuple[str, str, str]]:
+        """(url, title, folder) rows; optionally one folder and its subfolders, or one tag."""
+        in_folder, folder_params = _in_folder(folder)
+        with_tag, tag_params = _has_tag(tag)
+        sql = f"""
+            SELECT url, title, folder FROM bookmarks
+            WHERE {in_folder} AND {with_tag} ORDER BY folder, title
+        """
+        return self.db.execute(sql, (*folder_params, *tag_params)).fetchall()
+
+    def tags(self) -> list[tuple[str, int]]:
+        """Every tag with how many bookmarks have it, most used first.
+
+        Tags that differ only in case count as one, under the most common spelling.
+        """
+        spellings: dict[str, Counter[str]] = {}
+        for (value,) in self.db.execute("SELECT tags FROM bookmarks WHERE tags != ''"):
+            for tag in _split_tags(value):
+                spellings.setdefault(tag.lower(), Counter())[tag] += 1
+        counts = [(names.most_common(1)[0][0], sum(names.values())) for names in spellings.values()]
+        return sorted(counts, key=lambda item: (-item[1], item[0].lower()))
 
     def folders(self) -> list[tuple[str, int]]:
         """Every folder path, parents included, with how many bookmarks it holds.
@@ -505,19 +568,24 @@ class Store:
                 counts["/".join(parts[:depth])] += n
         return sorted(counts.items(), key=lambda item: item[0].split("/"))
 
-    def records(self, folder: str | None = None) -> list[Record]:
-        """Every bookmark, or one folder and its subfolders, ordered by folder and title."""
-        condition, params = _in_folder(folder)
+    def records(self, folder: str | None = None, tag: str | None = None) -> list[Record]:
+        """Every bookmark, or one folder and its subfolders, or one tag.
+
+        Ordered by folder and title.
+        """
+        in_folder, folder_params = _in_folder(folder)
+        with_tag, tag_params = _has_tag(tag)
         rows = self.db.execute(
             f"""
             SELECT url, title, folder, added_at, fetched_at,
-                   CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END
-            FROM bookmarks WHERE {condition}
+                   CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END,
+                   tags
+            FROM bookmarks WHERE {in_folder} AND {with_tag}
             ORDER BY folder, title, url
             """,
-            params,
+            (*folder_params, *tag_params),
         )
-        return [Record(*row) for row in rows]
+        return [Record(*row[:6], tags=_split_tags(row[6])) for row in rows]
 
     def stats(self) -> Stats:
         row = self.db.execute(

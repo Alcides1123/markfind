@@ -45,8 +45,9 @@ chain to build the path:
 - Built-in folders are identified by their fixed `guid` and shown with
   Firefox's display names: *Bookmarks Menu*, *Bookmarks Toolbar*, *Other
   Bookmarks* and *Mobile Bookmarks*.
-- The hidden *Tags* folder (`tags________`) and everything under it is
-  skipped. Firefox stores each tag as a second copy of the bookmark there.
+- Tags come from the hidden *Tags* folder (`tags________`). It holds one
+  folder per tag, with a second copy of each tagged bookmark inside, so
+  those copies become tags instead of bookmarks.
 - A missing bookmark title falls back to the page title in `moz_places`.
 - `dateAdded` is microseconds since 1970.
 
@@ -179,17 +180,18 @@ CREATE TABLE bookmarks (
     fetched_at TEXT,      -- last fetch attempt, ISO 8601 UTC
     fetch_error TEXT,     -- NULL if the last fetch succeeded
     error_kind TEXT,      -- failure kind, NULL if the last fetch succeeded
-    source TEXT           -- file it was last imported from, for pruning
+    source TEXT,          -- file it was last imported from, for pruning
+    tags TEXT NOT NULL DEFAULT ''  -- comma-separated, from Firefox
 );
 
 CREATE VIRTUAL TABLE bookmarks_fts USING fts5(
-    title, url, body, folder,
+    title, url, body, folder, tags,
     tokenize = 'porter unicode61 remove_diacritics 2'
 );
 ```
 
 - `bookmarks_fts.rowid` equals `bookmarks.id`. Whenever a bookmark's title,
-  folder or page text changes, its index row is deleted and re-inserted.
+  folder, tags or page text changes, its index row is deleted and re-inserted.
 - The page text (`body`) is stored only in the FTS table.
 - The tokenizer folds case and accents (`unicode61 remove_diacritics 2`) and
   reduces English words to their stems (`porter`).
@@ -206,6 +208,7 @@ Results are ordered by FTS5's `bm25()` with per-column weights:
 | Column | Weight | Why |
 |---|---|---|
 | `title` | 5 | A title match is the strongest signal of what a page is about |
+| `tags` | 4 | You chose them yourself to describe the page |
 | `body` | 2 | The page text is where most matches come from |
 | `url` | 1 | Useful for domains and slugs, but noisy |
 | `folder` | 1 | Helps to find "everything in Recipes", but folders are broad |
@@ -225,7 +228,7 @@ endpoints and three static files. The files (`web/index.html`, `app.js` and
 | Endpoint | Returns |
 |---|---|
 | `GET /api/similar?url=…&limit=N` | `{"url", "title", "keywords", "results": [...]}`, results as for search. `400` without `url`, `404` if the bookmark isn't in markfind. |
-| `GET /api/search?q=…&raw=1&folder=PATH&limit=N` | `{"query", "results": [{url, title, folder, snippet}]}`. `folder` keeps one folder and its subfolders. `400` with `{"error"}` for an invalid raw query. |
+| `GET /api/search?q=…&raw=1&folder=PATH&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags}]}`. `folder` keeps one folder and its subfolders. `400` with `{"error"}` for an invalid raw query. |
 | `GET /api/folders` | `{"folders": [{path, count}]}`: every folder, parents included, in tree order. A count includes subfolders. |
 | `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked}]}` |
 | `GET /api/stats` | `{"total", "indexed", "failed", "pending", "failed_by_kind"}` |
@@ -271,6 +274,7 @@ The database stores its schema version in `PRAGMA user_version`. When
 | 1 | Adds `bookmarks.error_kind`. Existing failures get the kind `other`. |
 | 2 | Adds `bookmarks.source`. Existing bookmarks get no source, so they're never pruned until a later import records one. |
 | 3 | No schema change. Pages fetched with no text, which used to count as indexed, are marked as `empty` failures. |
+| 4 | Adds `bookmarks.tags` and a `tags` column to `bookmarks_fts`. FTS5 tables can't gain columns, so the index is copied into a new table, page text included. |
 
 See [Development](development.md#changing-the-database-schema) for how to add
 a migration.

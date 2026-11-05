@@ -71,8 +71,14 @@ def _limit(params: dict[str, str], default: int = 30) -> int:
         return default
 
 
-def _result(r: SearchResult) -> dict[str, str]:
-    return {"url": r.url, "title": r.title, "folder": r.folder, "snippet": r.snippet}
+def _result(r: SearchResult) -> dict[str, object]:
+    return {
+        "url": r.url,
+        "title": r.title,
+        "folder": r.folder,
+        "snippet": r.snippet,
+        "tags": list(r.tags),
+    }
 
 
 def _load_static() -> dict[str, tuple[bytes, str]]:
