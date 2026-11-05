@@ -46,6 +46,37 @@ The tests never touch the network:
 | `test_sync.py` | Browser detection with fake home folders, pruning, `sync` and `import --prune` |
 | `test_examples.py` | The scripts in `examples/` |
 
+### Browser tests
+
+`tests_browser/` drives the web interface (`markfind serve` and
+`web/app.js`) in a real browser with [Playwright](https://playwright.dev/python/).
+The tests cover:
+
+- search as you type, and searches loaded from the address;
+- the folder and tag filters, and clicking a tag;
+- keyboard navigation, the Similar view, and the dead-links view;
+- saved copies, including their sandbox;
+- that page content is never run as HTML.
+
+They're kept out of the main run, so `python -m pytest` needs nothing beyond
+pytest.
+
+```sh
+python -m pip install -e ".[browser]"
+python -m playwright install chromium     # once: downloads Playwright's Chromium
+python -m pytest tests_browser
+```
+
+To use a browser you already have instead of downloading one, set
+`MARKFIND_BROWSER_CHANNEL` to `msedge` or `chrome`:
+
+```sh
+MARKFIND_BROWSER_CHANNEL=msedge python -m pytest tests_browser
+```
+
+Each test starts a `MarkfindServer` on a temporary database. Requests to any
+other site are answered locally, so the tests never use the network.
+
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push:
@@ -53,6 +84,7 @@ The tests never touch the network:
 - **Lint**: `ruff check` and `ruff format --check`.
 - **Test**: pytest on Ubuntu with Python 3.10–3.13 and on Windows with
   Python 3.10 and 3.13. Each job first checks that Python's SQLite has FTS5.
+- **Browser tests**: `tests_browser/` with Playwright's Chromium on Ubuntu.
 - **Build**: builds the sdist and wheel, runs `twine check`, installs the
   wheel in a clean virtualenv and runs `markfind --version`.
 

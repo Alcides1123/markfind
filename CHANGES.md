@@ -14,6 +14,15 @@
   - **Re-fetching:** run `markfind fetch --failed` to index PDFs fetched
     before (#47).
 
+- Fixed: a raw query with an unbalanced quote (`--raw '"open'`) or a bare
+  `*` crashed `markfind search` and the web UI instead of reporting
+  "invalid query". Found by the new browser tests (#53).
+
+- Browser tests for the web interface (`tests_browser/`, run with
+  Playwright) cover search as you type, folder and tag filters, keyboard
+  navigation, the Similar view, dead links and saved copies, and check that
+  page content is never run as HTML. CI runs them in their own job (#53).
+
 - Documented that markfind indexes and saves copies of pages marked
   `noindex` or `noarchive`: those directives are for public search engines,
   and markfind is a private index of pages you chose to keep (#50).
