@@ -43,6 +43,7 @@ The tests never touch the network:
 | `test_folders.py` | The folder tree, searching one folder (including names with `%` and `_`), `search --folder` |
 | `test_similar.py` | `markfind similar`: keyword choice, ranking, stemming, read-only use |
 | `test_pdf.py` | PDF bookmarks: reading text and titles, limits, damaged and scanned files, running without `pypdf` |
+| `test_rank_eval.py` | `scripts/rank_eval.py`: metrics, the verdict, leave-one-out, read-only use, bad query files |
 | `test_topics.py` | `markfind topics`: vectors, clustering, merging split topics, labels, the command |
 | `test_notes.py` | Your own tags and notes, kept apart from imports |
 | `test_saved_copies.py` | Saved copies: sanitizing, storage, `markfind archive`, the sandboxed `/archive` page |
@@ -139,6 +140,45 @@ come with a migration.
    it with `Store`, and checks that the data survived. See
    `test_migrates_0_1_0_database` in `tests/test_errors.py`.
 5. Add a row to the version table in [How it works](how-it-works.md#schema-versions-and-migrations).
+
+## Evaluating search ranking
+
+`scripts/rank_eval.py` measures how well `RANK_WEIGHTS` ranks real searches. It
+opens the database read-only and never changes it.
+
+1. Write a query file like
+   [`scripts/rank_queries.example.json`](../scripts/rank_queries.example.json):
+   searches you'd really make, each with the bookmarks you'd want first. Write
+   the searches before looking at the results, or they'll favour the current
+   ranking. Only searches and URLs go in the file, never page text, but they
+   still show what you bookmark, so decide whether to commit yours.
+2. See where the current weights put them:
+
+   ```sh
+   python scripts/rank_eval.py queries.json
+   ```
+
+   Each line shows the rank of the first expected bookmark. The summary gives
+   mean reciprocal rank (MRR: 1 if every search puts it first, 0.5 if every
+   search puts it second) and hits@3. A `-` means it wasn't found: searches need
+   every word to match, so no weights can fix that.
+3. Try the alternatives, which takes a few minutes on a large database (2.5
+   minutes for 3,000 pages and 15 searches):
+
+   ```sh
+   python scripts/rank_eval.py queries.json --grid
+   ```
+
+The script tries 729 combinations, and on a few searches some will win by chance.
+So its verdict rests on leave-one-out MRR, where each search is scored by the
+weights that did best on all the others. It says to change the weights only with:
+
+- at least 10 searches;
+- a leave-one-out MRR at least 0.05 above the current one;
+- more searches helped than hurt.
+
+The thresholds are judgement calls, kept as constants at the top of the script.
+Whichever way it goes, record the numbers in `docs/how-it-works.md`.
 
 ## Releasing
 

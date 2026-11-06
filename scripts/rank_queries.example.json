@@ -1,0 +1,10 @@
+[
+  {
+    "query": "fts5 tokenizer",
+    "expect": ["https://sqlite.org/fts5.html"]
+  },
+  {
+    "query": "packaging tutorial",
+    "expect": ["https://packaging.python.org/en/latest/tutorials/packaging-projects/"]
+  }
+]
