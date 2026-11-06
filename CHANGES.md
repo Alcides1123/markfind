@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-06)
+
+- markfind is on PyPI: install it with `pipx install markfind` or
+  `python -m pip install markfind`.
 
 - New `scripts/rank_eval.py` measures search ranking on your own searches, tries
   other weights, and says whether a change is justified. `RANK_WEIGHTS` hasn't
@@ -10,10 +13,11 @@
   the project metadata has URLs and classifiers, the README's links work on
   PyPI, and the sdist includes the docs and examples (#51).
 
-- macOS is tested again, in its own workflow because its runners don't always
-  arrive: the full test suite, a real Firefox profile imported with
-  `markfind sync`, and a Safari-format plist written by Apple's `plutil`.
-  Safari itself still needs checking on a real Mac (#52).
+- A new workflow tests on macOS, separately because its runners don't always
+  arrive, and so far it hasn't got one. In earlier runs on macOS, the test suite
+  passed, including reading a Safari-format plist written by Apple's `plutil`,
+  and `markfind sync` imported a real Firefox profile. Safari itself is still
+  unchecked on a real Mac (#52).
 
 - New `markfind topics`: groups your bookmarks into topics by the words
   their pages use, with no folders or tags needed, and names each topic by
