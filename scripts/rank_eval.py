@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from markfind import store as store_module
+from markfind.cli import default_db_path
 from markfind.store import SCHEMA_VERSION, Store, to_fts_query
 
 COLUMNS = ("title", "url", "body", "folder", "tags", "note")
@@ -189,7 +190,12 @@ def _report(queries: Sequence[Query], ranks: Ranks) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Evaluate markfind's ranking on your searches.")
     parser.add_argument("queries", type=Path, help="JSON file of searches and expected bookmarks")
-    parser.add_argument("--db", type=Path, default=Path.home() / ".markfind.sqlite")
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_db_path(),
+        help="database file (default: $MARKFIND_DB or ~/.markfind.sqlite)",
+    )
     parser.add_argument("--grid", action="store_true", help="also try other weights")
     args = parser.parse_args(argv)
 

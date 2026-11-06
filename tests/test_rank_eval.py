@@ -240,6 +240,12 @@ def test_bad_query_files(db, tmp_path, capsys, content):
     assert "error:" in capsys.readouterr().err
 
 
+def test_uses_the_same_database_as_markfind(db, tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("MARKFIND_DB", str(db))
+    assert rank_eval.main([str(title_queries(tmp_path))]) == 0
+    assert "hits@3 12/12" in capsys.readouterr().out
+
+
 def test_no_database(tmp_path, capsys):
     assert rank_eval.main([str(title_queries(tmp_path)), "--db", str(tmp_path / "none")]) == 2
     assert "no database" in capsys.readouterr().err
