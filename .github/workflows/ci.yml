@@ -70,6 +70,7 @@ jobs:
         if: runner.os == 'macOS'
         continue-on-error: true
         run: |
+          set +e
           sw_vers
           DB="$RUNNER_TEMP/probe.sqlite"
           ls /Applications | head -40
