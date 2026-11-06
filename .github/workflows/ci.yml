@@ -42,8 +42,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macOS is left out: its jobs never got a runner on this repo and sat
-        # queued until cancelled. markfind has no macOS-specific code paths.
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.13"]
         include:
@@ -51,6 +49,8 @@ jobs:
             python: "3.11"
           - os: ubuntu-latest
             python: "3.12"
+          - os: macos-latest
+            python: "3.13"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,6 +66,34 @@ jobs:
           sqlite3.connect(':memory:').execute('CREATE VIRTUAL TABLE t USING fts5(x)')"
       - name: Run tests
         run: python -m pytest -v
+      - name: Probe real macOS (temporary)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          sw_vers
+          DB="$RUNNER_TEMP/probe.sqlite"
+          ls /Applications | head -40
+          echo "--- before launching anything"
+          ls -la ~/Library/Safari || echo "ls exit $?"
+          markfind --db "$DB" sync --list; echo "sync --list exit $?"
+          echo "--- launch Safari"
+          open -ga Safari; sleep 20
+          osascript -e 'quit app "Safari"' || echo "quit exit $?"
+          sleep 3
+          ls -la ~/Library/Safari || echo "ls exit $?"
+          ls -la ~/Library/Containers/com.apple.Safari/Data/Library/Safari 2>&1 | head -20
+          file ~/Library/Safari/Bookmarks.plist || true
+          plutil -p ~/Library/Safari/Bookmarks.plist | head -60 || echo "plutil exit $?"
+          echo "--- launch Firefox and Chrome"
+          "/Applications/Firefox.app/Contents/MacOS/firefox" --headless --screenshot "$RUNNER_TEMP/f.png" https://example.com/ || echo "firefox exit $?"
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --no-first-run --dump-dom about:blank > /dev/null || echo "chrome exit $?"
+          ls -la ~/Library/Application\ Support/Firefox/Profiles 2>&1 | head
+          ls -la ~/Library/Application\ Support/Google/Chrome/Default 2>&1 | head -5
+          echo "--- after"
+          markfind --db "$DB" sync --list; echo "sync --list exit $?"
+          markfind --db "$DB" sync --no-fetch; echo "sync exit $?"
+          markfind --db "$DB" stats; echo "stats exit $?"
+          markfind --db "$DB" list | head -40
 
   browser:
     name: Browser tests

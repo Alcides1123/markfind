@@ -1,4 +1,6 @@
 import plistlib
+import shutil
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -87,6 +89,16 @@ def test_load_file_detects_plists(tmp_path, fmt):
 def test_corrupt_plist(data):
     with pytest.raises(ValueError, match="not a readable Safari bookmarks file"):
         parse_safari_plist(data)
+
+
+@pytest.mark.skipif(shutil.which("plutil") is None, reason="plutil comes with macOS")
+def test_binary_plist_written_by_apples_own_tool(tmp_path):
+    # plistlib wrote every other binary plist here; this one is from macOS.
+    path = tmp_path / "Bookmarks.plist"
+    path.write_bytes(plistlib.dumps(TREE, fmt=plistlib.FMT_XML))
+    subprocess.run(["plutil", "-convert", "binary1", str(path)], check=True)
+    assert path.read_bytes().startswith(b"bplist00")
+    assert load_file(path) == EXPECTED
 
 
 def test_other_formats_still_detected(tmp_path):
