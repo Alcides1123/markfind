@@ -86,8 +86,16 @@ other site are answered locally, so the tests never use the network.
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push:
 
 - **Lint**: `ruff check` and `ruff format --check`.
-- **Test**: pytest on Ubuntu with Python 3.10–3.13 and on Windows with
-  Python 3.10 and 3.13. Each job first checks that Python's SQLite has FTS5.
+- **Test**: pytest on Ubuntu with Python 3.10–3.13, on Windows with
+  Python 3.10 and 3.13, and on macOS with Python 3.13. Each job first checks
+  that Python's SQLite has FTS5. The macOS job also runs a real Firefox once
+  and imports its profile with `markfind sync`.
+
+  Safari can't be checked this way. On a CI runner, Safari doesn't write
+  `Bookmarks.plist` until something is saved, saving through AppleScript waits
+  on a permission prompt nobody can answer, and Full Disk Access isn't
+  enforced. So Safari's tests use fixture files, one of them written by
+  Apple's `plutil`.
 - **Browser tests**: `tests_browser/` with Playwright's Chromium on Ubuntu.
 - **Build**: builds the sdist and wheel, runs `twine check`, installs the
   wheel in a clean virtualenv and runs `markfind --version`.
