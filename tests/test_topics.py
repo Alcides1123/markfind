@@ -31,7 +31,8 @@ def pages(per_subject=8, seed=1, subjects=SUBJECTS, signal=0.8):
         words = vocabulary.split()
         for i in range(per_subject):
             text = [
-                rnd.choice(words) if rnd.random() < signal else rnd.choice(filler) for _ in range(150)
+                rnd.choice(words) if rnd.random() < signal else rnd.choice(filler)
+                for _ in range(150)
             ]
             result.append((f"https://{name}.example/{i}", f"Page {i}", name, " ".join(text)))
     return result
