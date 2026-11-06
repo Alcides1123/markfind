@@ -20,10 +20,12 @@ from urllib.parse import urlsplit
 
 from . import __version__
 from .extract import Page, extract_text, normalize
+from .pdf import MAX_PDF_BYTES, PdfEmptyError, PdfUnsupportedError, extract_pdf
 
 USER_AGENT = f"markfind/{__version__} (+personal bookmark indexer)"
 MAX_BYTES = 2_000_000
 _HTML_TYPES = ("text/html", "application/xhtml+xml")
+_PDF_TYPES = ("application/pdf", "application/x-pdf")
 # How an HTML document starts, after any BOM and whitespace.
 _HTML_START = re.compile(rb"<(?:!doctype\s+html|html|head|body)(?:[\s>/]|$)", re.IGNORECASE)
 
@@ -154,14 +156,19 @@ def sniff_content_type(declared: str | None, body: bytes) -> str | None:
     """The type to treat a response as, given its declared type (None if absent).
 
     HTML sent without a Content-Type, or mislabelled text/plain, is HTML.
-    Without a Content-Type, binary data gives None; anything else is text.
+    Without a Content-Type, a PDF is a PDF, other binary data gives None, and
+    anything else is text.
     """
+    if declared in _PDF_TYPES:
+        return "application/pdf"
     if declared not in (None, "text/plain"):
         return declared
     start = body[:1024].lstrip(b"\xef\xbb\xbf \t\r\n")
     if _HTML_START.match(start):
         return "text/html"
-    if declared is None and (b"\x00" in body[:1024] or start.startswith(b"%PDF")):
+    if declared is None and start.startswith(b"%PDF"):
+        return "application/pdf"
+    if declared is None and b"\x00" in body[:1024]:
         return None
     return "text/plain"
 
@@ -171,7 +178,9 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         url,
         headers={
             "User-Agent": USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
+            "Accept": (
+                "text/html,application/xhtml+xml,text/plain;q=0.9,application/pdf;q=0.8,*/*;q=0.1"
+            ),
         },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -180,16 +189,30 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         declared = (
             response.headers.get_content_type() if "Content-Type" in response.headers else None
         )
-        if declared not in (None, *_HTML_TYPES, "text/plain"):
+        if declared not in (None, *_HTML_TYPES, *_PDF_TYPES, "text/plain"):
             raise UnsupportedContentError(f"unsupported content type: {declared}")
         # Very large pages are truncated rather than skipped.
         raw = response.read(max_bytes)
         charset = response.headers.get_content_charset() or "utf-8"
         final_url = response.geturl() or url  # after redirects, for links in the copy
+        content_type = sniff_content_type(declared, raw)
+        if content_type == "application/pdf" and len(raw) == max_bytes:
+            # A truncated PDF can't be read at all, so PDFs get a higher limit.
+            raw += response.read(MAX_PDF_BYTES + 1 - len(raw))
+            if len(raw) > MAX_PDF_BYTES:
+                raise UnsupportedContentError(
+                    f"PDF larger than {MAX_PDF_BYTES // 1_000_000} MB, not indexed"
+                )
 
-    content_type = sniff_content_type(declared, raw)
     if content_type is None:
         raise UnsupportedContentError("unsupported content: binary data with no content type")
+    if content_type == "application/pdf":
+        try:
+            return extract_pdf(raw)
+        except PdfUnsupportedError as exc:
+            raise UnsupportedContentError(str(exc)) from exc
+        except PdfEmptyError as exc:
+            raise EmptyPageError(str(exc)) from exc
 
     try:
         body = raw.decode(charset, errors="replace")

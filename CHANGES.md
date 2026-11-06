@@ -9,9 +9,22 @@
   - **Results:** the same bookmarks always give the same topics.
   - **Python API:** `Store.topics()` (#49).
 
+- PDF bookmarks are indexed when the optional `pypdf` package is installed
+  (`pip install "markfind[pdf]"`).
+  - **What's read:** their text and title, from the first 300 pages. The
+    saved copy is the text, page by page.
+  - **Limits:** PDFs may be up to 30 MB, since a truncated PDF can't be
+    read. Password-protected and damaged PDFs are `unsupported`, and scanned
+    ones without text are `empty`.
+  - **Without `pypdf`:** PDFs stay `unsupported`, now with a message saying
+    how to add support.
+  - **Re-fetching:** run `markfind fetch --failed` to index PDFs fetched
+    before (#47).
+
 - Fixed: a raw query with an unbalanced quote (`--raw '"open'`) or a bare
   `*` crashed `markfind search` and the web UI instead of reporting
   "invalid query". Found by the new browser tests (#53).
+
 - Browser tests for the web interface (`tests_browser/`, run with
   Playwright) cover search as you type, folder and tag filters, keyboard
   navigation, the Similar view, dead links and saved copies, and check that
