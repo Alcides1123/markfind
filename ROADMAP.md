@@ -6,7 +6,7 @@ Each item has an issue with the details, and a rough estimate.
 
 | Issue | Work | Estimate |
 |---|---|---|
-| #47 | Index PDF bookmarks (optional `pypdf` dependency) | 6 h |
+| #47 | ~~Index PDF bookmarks (optional `pypdf` dependency)~~ (done) | 6 h |
 | #48 | Tune search ranking with a set of real queries | 5 h |
 | #49 | Group bookmarks into topics automatically (`markfind topics`) | 8 h |
 | #50 | ~~Decide how to treat pages marked `noindex`~~ (done) | 1.5 h |
@@ -25,7 +25,7 @@ The sections below list everything by theme, done and planned.
       `<main>` / `<article>` (#39)
 - [x] Respect `<meta name="robots" content="noindex">`? Decided: no, it's a
       personal index; documented in How it works (#50)
-- [ ] Index PDF bookmarks (optional dependency) (#47)
+- [x] Index PDF bookmarks (optional dependency) (#47)
 - [x] Re-fetch pages older than N days: `markfind fetch --older-than 90d`
 - [x] Retry failed fetches: `markfind fetch --failed`
 - [x] Per-host rate limiting during fetch

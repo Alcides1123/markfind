@@ -126,7 +126,8 @@ def test_page_without_text_is_empty(base_url, path):
         ("text/plain", b"<html-is-not-a-tag>", "text/plain"),
         (None, b"<html", "text/html"),
         (None, b"", "text/plain"),
-        (None, b"%PDF-1.4", None),
+        (None, b"%PDF-1.4", "application/pdf"),  # read with pypdf when it's installed
+        ("application/x-pdf", b"%PDF-1.4", "application/pdf"),
         ("text/plain", b"%PDF-1.4", "text/plain"),  # declared text is trusted unless it's HTML
     ],
 )

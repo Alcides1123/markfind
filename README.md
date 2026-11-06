@@ -24,6 +24,10 @@ cd markfind
 python -m pip install -e .
 ```
 
+To index bookmarked PDFs too, install the optional `pypdf` dependency with
+`python -m pip install -e ".[pdf]"`. Everything else needs only the standard
+library.
+
 ## Usage
 
 1. **Export your bookmarks** to an HTML file:

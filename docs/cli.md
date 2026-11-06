@@ -173,12 +173,23 @@ What gets indexed:
 - HTML pages (`text/html`, `application/xhtml+xml`) are reduced to their main
   text. See [text extraction](how-it-works.md#text-extraction).
 - `text/plain` pages are indexed as they are.
-- Anything else, such as PDFs and images, is recorded as an `unsupported`
-  failure.
+- PDFs are indexed when the optional `pypdf` package is installed
+  (`pip install "markfind[pdf]"`):
+  - their text and title are read from the first 300 pages;
+  - the [saved copy](#archive) is the text, page by page;
+  - without `pypdf`, a PDF is an `unsupported` failure whose message says
+    how to add support;
+  - password-protected and damaged PDFs are `unsupported`, and scanned ones
+    with no text are `empty`.
+- Anything else, such as images, is recorded as an `unsupported` failure.
 - Some servers send no content type, or label HTML as `text/plain`. markfind
-  then looks at the page itself: one that starts like an HTML document is
-  treated as HTML, binary data is `unsupported`, and anything else is text.
-- Pages over 2 MB are truncated.
+  then looks at the page itself:
+  - one that starts like an HTML document is treated as HTML;
+  - one that starts with `%PDF` is a PDF;
+  - other binary data is `unsupported`;
+  - anything else is text.
+- Pages over 2 MB are truncated. PDFs can't be read once cut, so they may
+  be up to 30 MB; bigger ones are `unsupported`.
 
 If a bookmark has no title, the page's `<title>` is used.
 
