@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- New `scripts/rank_eval.py` measures search ranking on your own searches, tries
+  other weights, and says whether a change is justified. `RANK_WEIGHTS` hasn't
+  changed: that needs a set of real searches (#48).
+
 - Packaging for PyPI: a workflow publishes version tags with trusted publishing,
   the project metadata has URLs and classifiers, the README's links work on
   PyPI, and the sdist includes the docs and examples (#51).

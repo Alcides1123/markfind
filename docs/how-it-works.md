@@ -266,8 +266,10 @@ Results are ordered by FTS5's `bm25()` with per-column weights:
 | `url` | 1 | Useful for domains and slugs, but noisy |
 | `folder` | 1 | Helps to find "everything in Recipes", but folders are broad |
 
-These weights are a reasonable starting point, not tuned values. Tuning them
-on real queries is on the [roadmap](../ROADMAP.md).
+These weights are a reasonable starting point, not tuned values. They haven't
+been measured against real searches yet. The tool for that is
+[`scripts/rank_eval.py`](development.md#evaluating-search-ranking), and the
+evaluation itself is on the [roadmap](../ROADMAP.md).
 
 The snippet is FTS5's `snippet()` over the `body` column: up to 16 tokens
 around the matches.
