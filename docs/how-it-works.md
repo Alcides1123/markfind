@@ -334,7 +334,7 @@ numerical libraries.
    - terms on only one page, which can't group anything;
    - terms on more than half the pages, which can't tell most of them apart.
 
-   Only a page's 25 heaviest terms are kept: enough to place it, and short
+   Only a page's 100 heaviest terms are kept: enough to place it, and short
    vectors keep the clustering fast.
 3. **Spherical k-means.** This is k-means on unit vectors, compared by cosine
    similarity.
@@ -345,21 +345,41 @@ numerical libraries.
    - **Restarts:** k-means can settle on a poor grouping, so it runs from 4
      starting points and keeps the one whose pages are closest to their
      centres in total.
-4. **How many.** By default, k is about √(pages / 2), capped at 40. That's
-   only an estimate, and guessing high splits a subject in two, so topics
-   whose centres are more than 0.25 alike are merged, and k-means runs again
-   from the merged centres. On test collections, halves of one subject were
-   0.3–1.0 alike, and different subjects at most 0.12. With `--count`, there's
-   no merging.
+4. **How many.** By default, k starts high, at one topic per 3 pages, capped
+   at 40. Too few topics forces different subjects together, which nothing can
+   undo later, while too many only splits a subject, which merging can fix. So
+   topics whose centres are more than 0.15 alike are merged, and k-means runs
+   again from the merged centres. With `--count`, there's no merging.
 5. **Leftovers.** Pages less than 0.1 similar to their topic, and topics
    under `--min-size`, go to *No clear topic*.
 6. **Labels.** Each topic is named by its centre's three heaviest stems, each
    shown as its most common spelling in the pages ("database", not
    "databas").
 
-On a synthetic collection of 3,000 pages of 800 words in 30 subjects, it
-finds exactly 30 topics, each from one subject, in about 5 to 10 seconds.
-Most of that is counting words in Python.
+The settings come from real pages, using
+[`scripts/topics_eval.py`](../scripts/topics_eval.py). They were chosen on two sets
+of about 120 pages in 12 subjects each, then scored once on a third set of 108 pages
+with other subjects and sites. ARI is the adjusted Rand index, where 1 is a perfect
+grouping and 0 is chance.
+
+| Set | ARI before | ARI now | Purity before | Purity now | Topics before | Topics now |
+|---|---|---|---|---|---|---|
+| First (used to choose) | 0.49 | 0.78 | 0.62 | 0.85 | 8 | 10 |
+| Second (used to choose) | 0.51 | 0.67 | 0.63 | 0.74 | 8 | 9 |
+| Third (scored once) | 0.47 | 0.86 | 0.57 | 0.91 | 7 | 11 |
+
+The scores vary between sets and runs, so expect roughly 0.7 to 0.85, not the best
+figure. On random small collections from the third set, 10 to 50 pages over 9 sizes,
+the mean ARI rose from 0.63 to 0.84, and every size improved.
+
+What's left on the third set: nginx and Node.js shared a topic, both being about
+servers, Redis split in two, and 2 pages had no clear topic. These are encyclopedia
+and documentation pages, so a real collection may do worse. Pairs of similar pages
+stay in *No clear topic* under the default `--min-size` of 3.
+
+3,000 synthetic pages of 800 words each take under a minute. The same run still finds
+all 30 subjects, but this is a poor test of quality: the earlier settings were also
+perfect on it.
 
 ## Saved copies
 

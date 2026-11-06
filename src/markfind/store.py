@@ -766,9 +766,9 @@ class Store:
     ) -> Topics:
         """Group indexed bookmarks into topics by their words; see ``markfind.topics``.
 
-        ``count`` is how many topics to look for (default: about the square
-        root of half the number of pages); ``folder`` limits it to one folder
-        and its subfolders.
+        ``count`` is how many topics to look for (default: chosen from the
+        pages, then reduced by merging similar topics); ``folder`` limits it to
+        one folder and its subfolders.
         """
         in_folder, params = _in_folder(folder, "b.folder")
         rows = self.db.execute(

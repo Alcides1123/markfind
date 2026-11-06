@@ -5,6 +5,13 @@
 - markfind is on PyPI: install it with `pipx install markfind` or
   `python -m pip install markfind`.
 
+- `markfind topics` is much better on real pages, where unrelated subjects could
+  end up together. It now starts from more topics and merges similar ones, using
+  settings measured on labelled real pages: the adjusted Rand index (1 is perfect,
+  0 is chance) rose from about 0.5 to between 0.67 and 0.86 across three sets. It's
+  slower: 3,000 pages take under a minute instead of 5 to 10 seconds.
+  `scripts/topics_eval.py` reproduces the evaluation (#65).
+
 - HTTPS certificates: if the optional `truststore` package is installed
   (`markfind[truststore]`), markfind verifies through the operating system, so
   sites with good certificates no longer fail on Windows machines that haven't
