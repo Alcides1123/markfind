@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- CI runs on macOS again: the full test suite, a real Firefox profile
-  imported with `markfind sync`, and a Safari-format plist written by Apple's
-  `plutil`. Safari itself still needs checking on a real Mac (#52).
+- macOS is tested again, in its own workflow because its runners don't always
+  arrive: the full test suite, a real Firefox profile imported with
+  `markfind sync`, and a Safari-format plist written by Apple's `plutil`.
+  Safari itself still needs checking on a real Mac (#52).
 
 - New `markfind topics`: groups your bookmarks into topics by the words
   their pages use, with no folders or tags needed, and names each topic by

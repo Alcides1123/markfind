@@ -65,6 +65,6 @@ The sections below list everything by theme, done and planned.
 - [x] Save an archived copy of each page so results survive link rot (#45)
 - [x] CI: GitHub Actions with lint, tests on Linux and Windows, and a package build (#3)
 - [ ] Publish to PyPI (#51)
-- [x] Run CI on macOS too (#52)
+- [x] Test on macOS too, in a separate workflow since runners don't always arrive (#52)
 - [ ] Check Safari import and the Full Disk Access message on a real Mac (#52)
 - [x] Browser tests for the web interface (#53)

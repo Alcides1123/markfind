@@ -42,6 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # macOS has its own workflow, macos.yml: its runners don't always arrive.
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.13"]
         include:
@@ -49,8 +50,6 @@ jobs:
             python: "3.11"
           - os: ubuntu-latest
             python: "3.12"
-          - os: macos-latest
-            python: "3.13"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,24 +65,6 @@ jobs:
           sqlite3.connect(':memory:').execute('CREATE VIRTUAL TABLE t USING fts5(x)')"
       - name: Run tests
         run: python -m pytest -v
-      # Real Firefox, real profile folder: the other tests use fixture files.
-      # Firefox makes a profile with its default bookmarks as it starts, and
-      # stays open, as it often is when people sync.
-      - name: Import from a real Firefox
-        if: runner.os == 'macOS'
-        run: |
-          DB="$RUNNER_TEMP/firefox.sqlite"
-          /Applications/Firefox.app/Contents/MacOS/firefox --headless about:blank > /dev/null 2>&1 &
-          for attempt in $(seq 1 30); do
-            sleep 2
-            if markfind --db "$DB" sync --no-fetch --browser firefox &&
-              markfind --db "$DB" list | grep -F "Bookmarks Menu/Mozilla Firefox"; then
-              found=1
-              break
-            fi
-          done
-          kill %1 || true
-          test -n "$found"
 
   browser:
     name: Browser tests

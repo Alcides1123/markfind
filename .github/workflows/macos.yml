@@ -1,0 +1,57 @@
+name: macOS
+
+# Separate from ci.yml because macOS runners don't always arrive: jobs sometimes
+# wait out their timeout without ever starting. That says nothing about the
+# code, and shouldn't hold up every push or fail the main CI.
+on:
+  push:
+    # To test a branch on macOS, put "macos" in its name.
+    branches: [main, "*macos*"]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (macos-latest, Python 3.13)
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Check SQLite FTS5
+        run: >-
+          python -c "import sqlite3; print('SQLite', sqlite3.sqlite_version);
+          sqlite3.connect(':memory:').execute('CREATE VIRTUAL TABLE t USING fts5(x)')"
+      - name: Run tests
+        run: python -m pytest -v
+      # Real Firefox, real profile folder: the other tests use fixture files.
+      # Firefox makes a profile with its default bookmarks as it starts, and
+      # stays open, as it often is when people sync.
+      - name: Import from a real Firefox
+        run: |
+          DB="$RUNNER_TEMP/firefox.sqlite"
+          /Applications/Firefox.app/Contents/MacOS/firefox --headless about:blank > /dev/null 2>&1 &
+          for attempt in $(seq 1 30); do
+            sleep 2
+            if markfind --db "$DB" sync --no-fetch --browser firefox &&
+              markfind --db "$DB" list | grep -F "Bookmarks Menu/Mozilla Firefox"; then
+              found=1
+              break
+            fi
+          done
+          kill %1 || true
+          test -n "$found"
