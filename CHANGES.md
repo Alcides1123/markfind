@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Packaging for PyPI: a workflow publishes version tags with trusted publishing,
+  the project metadata has URLs and classifiers, the README's links work on
+  PyPI, and the sdist includes the docs and examples (#51).
+
 - macOS is tested again, in its own workflow because its runners don't always
   arrive: the full test suite, a real Firefox profile imported with
   `markfind sync`, and a Safari-format plist written by Apple's `plutil`.

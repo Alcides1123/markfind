@@ -145,4 +145,20 @@ come with a migration.
 1. Move the *Unreleased* entries in `CHANGES.md` under a new version heading.
 2. Bump the version in `pyproject.toml` and `src/markfind/__init__.py`.
 3. Merge, tag `vX.Y.Z` on `main`, and create a GitHub release from the tag.
-   The *Build* job's `dist` artifact contains the sdist and wheel.
+
+Pushing the tag runs [`.github/workflows/publish.yml`](../.github/workflows/publish.yml).
+It builds the sdist and wheel, installs each in a clean virtualenv, checks that
+the tag matches the version, and publishes to PyPI. PyPI never accepts the same
+version twice, so a mistake needs a new version number.
+
+**One-time setup,** before the first upload:
+
+1. On PyPI, open *Your projects → Publishing* and add a pending publisher:
+   project `markfind`, owner `Alcides1123`, repository `markfind`, workflow
+   `publish.yml`, environment `pypi`.
+2. In the GitHub repository, *Settings → Environments → New environment*, name
+   it `pypi`. Adding yourself as a required reviewer makes each upload wait for
+   your approval.
+
+A tag only runs the workflow if the tagged commit contains it, so tags made
+before `publish.yml` existed never publish.

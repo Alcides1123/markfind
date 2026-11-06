@@ -124,11 +124,11 @@ certificates; see them with `markfind broken --kind ssl`.
 
 ## Documentation and examples
 
-- [Getting started](docs/getting-started.md): install, export, first search
-- [Command reference](docs/cli.md): every option, advanced search syntax
-- [How it works](docs/how-it-works.md): extraction, ranking, schema
-- [Python API](docs/python-api.md): use markfind from your own code
-- [Examples](examples/README.md): an offline demo, a Markdown export script,
+- [Getting started](https://github.com/Alcides1123/markfind/blob/main/docs/getting-started.md): install, export, first search
+- [Command reference](https://github.com/Alcides1123/markfind/blob/main/docs/cli.md): every option, advanced search syntax
+- [How it works](https://github.com/Alcides1123/markfind/blob/main/docs/how-it-works.md): extraction, ranking, schema
+- [Python API](https://github.com/Alcides1123/markfind/blob/main/docs/python-api.md): use markfind from your own code
+- [Examples](https://github.com/Alcides1123/markfind/blob/main/examples/README.md): an offline demo, a Markdown export script,
   and scheduled refresh scripts. Try `python examples/offline_demo.py`.
 
 ## Development
@@ -139,15 +139,15 @@ python -m pytest
 ruff check . && ruff format --check .
 ```
 
-Every push runs [CI](.github/workflows/ci.yml): ruff lint and format checks,
+Every push runs [CI](https://github.com/Alcides1123/markfind/blob/main/.github/workflows/ci.yml): ruff lint and format checks,
 the test suite on Linux and Windows (Python 3.10–3.13), and a package
 build with a smoke test of the installed wheel. A separate workflow tests on
 macOS. See
-[docs/development.md](docs/development.md) for the workflow, schema
+[docs/development.md](https://github.com/Alcides1123/markfind/blob/main/docs/development.md) for the workflow, schema
 migrations and releases.
 
-Planned work is in [ROADMAP.md](ROADMAP.md).
+Planned work is in [ROADMAP.md](https://github.com/Alcides1123/markfind/blob/main/ROADMAP.md).
 
 ## License
 
-BSD 3-Clause — see [LICENSE](LICENSE).
+BSD 3-Clause — see [LICENSE](https://github.com/Alcides1123/markfind/blob/main/LICENSE).
