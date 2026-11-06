@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from markfind.store import RANK_WEIGHTS, Store
 SCRIPT = Path(__file__).parent.parent / "scripts" / "rank_eval.py"
 spec = importlib.util.spec_from_file_location("rank_eval", SCRIPT)
 rank_eval = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = rank_eval  # dataclasses looks the module up here
 spec.loader.exec_module(rank_eval)
 
 CURRENT = (5.0, 1.0, 2.0, 1.0, 4.0, 3.0)
