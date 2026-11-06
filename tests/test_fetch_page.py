@@ -26,6 +26,8 @@ PAGES = {
     "/no-type-pdf": (None, b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj"),
     "/no-type-binary": (None, b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"),
     "/plain-html": ("text/plain", HTML),
+    "/markdown": ("text/markdown; charset=utf-8", b"# Volumes\n\nPersistent data stores."),
+    "/x-markdown": ("text/x-markdown", b"# Volumes\n\nPersistent data stores."),
     "/plain-text": ("text/plain; charset=utf-8", b"<b> is how you write bold in HTML."),
     "/pdf": ("application/pdf", b"%PDF-1.7"),
     # A JavaScript app: everything is drawn by script, and <noscript> isn't indexed.
@@ -86,6 +88,13 @@ def test_plain_text_stays_text(base_url):
     assert fetch_page(base_url + "/plain-text").text == "<b> is how you write bold in HTML."
 
 
+@pytest.mark.parametrize("path", ["/markdown", "/x-markdown"])
+def test_markdown_is_text(base_url, path):
+    page = fetch_page(base_url + path)
+    assert page.text == "# Volumes Persistent data stores."
+    assert page.html == "<pre># Volumes\n\nPersistent data stores.</pre>"
+
+
 def test_saved_copy_of_plain_text_keeps_lines(base_url):
     assert (
         fetch_page(base_url + "/no-type-text").html == "<pre>Just some notes.\nSecond line.</pre>"
@@ -123,6 +132,8 @@ def test_page_without_text_is_empty(base_url, path):
         (None, b"<!doctype html><title>x</title>", "text/html"),
         (None, b"  <HEAD><title>x</title>", "text/html"),
         ("text/plain", b"<BODY>hi", "text/html"),
+        ("text/markdown", b"# Title", "text/plain"),
+        ("text/markdown", b"<html><body>hi", "text/html"),
         ("text/plain", b"<html-is-not-a-tag>", "text/plain"),
         (None, b"<html", "text/html"),
         (None, b"", "text/plain"),

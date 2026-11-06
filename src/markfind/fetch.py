@@ -28,6 +28,9 @@ USER_AGENT = f"markfind/{__version__} (+personal bookmark indexer)"
 MAX_BYTES = 2_000_000
 _HTML_TYPES = ("text/html", "application/xhtml+xml")
 _PDF_TYPES = ("application/pdf", "application/x-pdf")
+# Indexed as they are. Some documentation sites send Markdown to anything that isn't
+# a browser, and it's already clean text.
+_TEXT_TYPES = ("text/plain", "text/markdown", "text/x-markdown")
 # How an HTML document starts, after any BOM and whitespace.
 _HTML_START = re.compile(rb"<(?:!doctype\s+html|html|head|body)(?:[\s>/]|$)", re.IGNORECASE)
 
@@ -157,13 +160,13 @@ def retry_wait(exc: BaseException) -> float | None:
 def sniff_content_type(declared: str | None, body: bytes) -> str | None:
     """The type to treat a response as, given its declared type (None if absent).
 
-    HTML sent without a Content-Type, or mislabelled text/plain, is HTML.
+    HTML sent without a Content-Type, or mislabelled as text, is HTML.
     Without a Content-Type, a PDF is a PDF, other binary data gives None, and
     anything else is text.
     """
     if declared in _PDF_TYPES:
         return "application/pdf"
-    if declared not in (None, "text/plain"):
+    if declared not in (None, *_TEXT_TYPES):
         return declared
     start = body[:1024].lstrip(b"\xef\xbb\xbf \t\r\n")
     if _HTML_START.match(start):
@@ -211,7 +214,7 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         declared = (
             response.headers.get_content_type() if "Content-Type" in response.headers else None
         )
-        if declared not in (None, *_HTML_TYPES, *_PDF_TYPES, "text/plain"):
+        if declared not in (None, *_HTML_TYPES, *_PDF_TYPES, *_TEXT_TYPES):
             raise UnsupportedContentError(f"unsupported content type: {declared}")
         # Very large pages are truncated rather than skipped.
         raw = response.read(max_bytes)

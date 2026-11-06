@@ -18,6 +18,10 @@
   downloaded their root certificate yet. The README and the hint after a failed
   fetch no longer blame the site (#63).
 
+- Fixed: pages sent as Markdown were `unsupported`. docs.docker.com sends it to
+  markfind, so its pages couldn't be indexed. Run `markfind fetch --failed` to
+  fetch them again (#67).
+
 - New `scripts/rank_eval.py` measures search ranking on your own searches, tries
   other weights, and says whether a change is justified. `RANK_WEIGHTS` hasn't
   changed: that needs a set of real searches (#48).

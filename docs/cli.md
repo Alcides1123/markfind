@@ -173,7 +173,7 @@ What gets indexed:
 
 - HTML pages (`text/html`, `application/xhtml+xml`) are reduced to their main
   text. See [text extraction](how-it-works.md#text-extraction).
-- `text/plain` pages are indexed as they are.
+- `text/plain` and Markdown pages are indexed as they are.
 - PDFs are indexed when the optional `pypdf` package is installed
   (`pip install "markfind[pdf]"`):
   - their text and title are read from the first 300 pages;
@@ -220,7 +220,7 @@ Every failure is recorded with a **kind**. [`broken`](#broken) and
 | `timeout` | No response within `--timeout` | no, try later |
 | `connection` | Connection refused or reset | maybe |
 | `ssl` | Certificate or TLS failure | see [SSL certificate errors](../README.md#ssl-certificate-errors) |
-| `unsupported` | Not HTML or plain text | no |
+| `unsupported` | Not HTML, plain text, Markdown or a readable PDF | no |
 | `empty` | The page downloaded but has no text, usually an app drawn by JavaScript or a page behind a login | no |
 | `other` | Anything else | — |
 
