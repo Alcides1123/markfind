@@ -11,11 +11,15 @@ pages are closest to their topics. Each run compares a page only with the
 topic centres that share one of its terms, found through an inverted index,
 which keeps thousands of pages to a few seconds.
 
-When markfind picks the number of topics itself, it's only an estimate, and
-guessing high splits a subject in two. So afterwards, topics whose centres
-are more than MERGE_SIMILARITY alike are merged, and k-means runs once more
-from the merged centres. (On test collections, halves of one subject were
-0.3 to 1.0 alike, and different subjects at most 0.12.)
+When markfind picks the number of topics itself, it deliberately starts with
+too many: too few forces different subjects together, which merging can't undo.
+Topics whose centres are more than MERGE_SIMILARITY alike are then merged, and
+k-means runs once more from the merged centres.
+
+The settings here were chosen on labelled real pages and checked on a separate
+set with other subjects; see scripts/topics_eval.py. Synthetic pages are a poor
+guide: settings that looked perfect on them put unrelated subjects together on
+real ones.
 
 The clustering is deterministic: the same pages give the same topics.
 """
@@ -29,9 +33,8 @@ from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-# Terms per page vector: a page's most telling words are enough to place it,
-# and keeping vectors short keeps clustering fast.
-TERMS_PER_PAGE = 25
+# Terms per page vector: enough to place a page, and short enough to stay fast.
+TERMS_PER_PAGE = 100
 # A term on more than this share of pages can't tell most of them apart. (A
 # subject's words can be on a third of pages when there are only three.)
 MAX_SHARE = 0.5
@@ -41,7 +44,9 @@ MIN_SIZE = 3
 MAX_TOPICS = 40
 ITERATIONS = 25
 RESTARTS = 4
-MERGE_SIMILARITY = 0.25
+MERGE_SIMILARITY = 0.15
+# Start from one topic per this many pages, before merging.
+PAGES_PER_TOPIC = 3
 LABEL_TERMS = 3
 
 Vector = dict[str, float]
@@ -198,8 +203,8 @@ def _merged(
 
 
 def default_count(pages: int) -> int:
-    """How many topics to look for: about sqrt(pages / 2)."""
-    return max(1, min(MAX_TOPICS, round(math.sqrt(pages / 2))))
+    """How many topics to start from, before merging: one per PAGES_PER_TOPIC pages."""
+    return max(1, min(MAX_TOPICS, round(pages / PAGES_PER_TOPIC)))
 
 
 def cluster(

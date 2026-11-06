@@ -368,7 +368,7 @@ Within a topic, the most typical bookmarks come first.
 
 | Option | Meaning |
 |---|---|
-| `--count N` | How many topics to look for. By default markfind picks about √(bookmarks / 2), then merges topics that turn out to be about the same thing. With `--count`, you get that many (fewer only if some are too small). |
+| `--count N` | How many topics to look for. By default markfind starts from one topic per 3 bookmarks, up to 40, then merges topics that turn out to be about the same thing. With `--count`, you get that many (fewer only if some are too small). |
 | `--min-size N` | Topics with fewer bookmarks are dissolved into *No clear topic* (default 3). |
 | `--folder PATH` | Only this folder and its subfolders, to sort out one big folder. |
 | `--json` | Print `{"topics": [{label, bookmarks: [{url, title, folder}]}], "other": [...], "unindexed": N}`. |

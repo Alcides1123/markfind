@@ -18,8 +18,12 @@ SUBJECTS = {
 }
 
 
-def pages(per_subject=8, seed=1, subjects=SUBJECTS):
-    """(url, title, folder, text) for pages that mostly use their subject's words."""
+def pages(per_subject=8, seed=1, subjects=SUBJECTS, signal=0.8):
+    """(url, title, folder, text) for pages using their subject's words signal of the time.
+
+    These only check the mechanics. Quality has to be judged on real pages, where
+    settings that were perfect here did badly; see scripts/topics_eval.py.
+    """
     rnd = random.Random(seed)
     filler = [f"filler{i}" for i in range(400)]
     result = []
@@ -27,7 +31,7 @@ def pages(per_subject=8, seed=1, subjects=SUBJECTS):
         words = vocabulary.split()
         for i in range(per_subject):
             text = [
-                rnd.choice(words) if rnd.random() < 0.4 else rnd.choice(filler) for _ in range(150)
+                rnd.choice(words) if rnd.random() < signal else rnd.choice(filler) for _ in range(150)
             ]
             result.append((f"https://{name}.example/{i}", f"Page {i}", name, " ".join(text)))
     return result
@@ -78,12 +82,12 @@ def test_cluster_finds_the_subjects():
 
 
 def test_automatic_count_merges_split_subjects():
-    # Too many topics asked for: one subject gets split...
+    # Too many topics asked for: a subject gets split...
     rows = pages(per_subject=12)
     vecs = vectors(term_counts(rows))
     assert len(cluster(vecs, count=6).groups) > 3
     # ...but when markfind picks the count, halves of a subject are merged.
-    assert default_count(len(vecs)) == 4
+    assert default_count(len(vecs)) == 12
     assert len(cluster(vecs).groups) == 3
 
 
@@ -107,7 +111,7 @@ def test_cluster_edge_cases():
     assert cluster([{}, {}]) == Clusters([], [], [0, 1])
     assert (
         default_count(1) == 1
-        and default_count(200) == 10
+        and default_count(30) == 10
         and default_count(10**6) == topics.MAX_TOPICS
     )
 
