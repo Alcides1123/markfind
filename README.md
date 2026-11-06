@@ -100,9 +100,21 @@ the `MARKFIND_DB` environment variable.
 
 ### SSL certificate errors
 
-If `markfind fetch` reports `ssl: certificate verification failed` for most
-HTTPS sites, Python can't find the certificate authorities it needs to trust
-them. Common causes and fixes:
+If `markfind fetch` reports `ssl: certificate verification failed` for sites
+that open fine in your browser, Python can't find the certificate authorities
+it needs to trust them. This can affect only some sites: Windows downloads
+certificate authorities when first needed, and Python only sees the ones already
+on the machine.
+
+The simplest fix is the optional `truststore` package, which verifies through
+your operating system, as browsers do. markfind uses it automatically once
+it's installed. It also covers antivirus and company proxies that inspect HTTPS.
+
+```sh
+python -m pip install truststore
+```
+
+Then run `markfind fetch --failed`. Other fixes:
 
 - **python.org installer on macOS:** run *Install Certificates.command* from
   the `Applications/Python 3.x` folder.
@@ -119,8 +131,9 @@ them. Common causes and fixes:
   $env:SSL_CERT_FILE = python -m certifi
   ```
 
-If only a few sites fail, those sites likely have expired or misconfigured
-certificates; see them with `markfind broken --kind ssl`.
+A site that also shows a certificate warning in your browser has a real problem,
+such as an expired or self-signed certificate. See the failures with
+`markfind broken --kind ssl`.
 
 ## Documentation and examples
 

@@ -36,8 +36,8 @@ from .topics import MIN_SIZE
 _DURATION_UNITS = {"h": "hours", "d": "days", "w": "weeks"}
 
 SSL_HINT = (
-    "hint: some pages failed SSL certificate checks. If this happens for most\n"
-    "HTTPS sites, Python can't find your system's certificates; see\n"
+    "hint: some pages failed SSL certificate checks. Their certificates may be\n"
+    "fine: Python often can't use all of your system's, especially on Windows. See\n"
     "https://github.com/Alcides1123/markfind#ssl-certificate-errors"
 )
 

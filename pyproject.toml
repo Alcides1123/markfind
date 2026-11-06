@@ -37,7 +37,9 @@ Changelog = "https://github.com/Alcides1123/markfind/blob/main/CHANGES.md"
 [project.optional-dependencies]
 # Index PDF bookmarks.
 pdf = ["pypdf>=4"]
-dev = ["pytest>=8", "ruff>=0.15", "pypdf>=4"]
+# Verify HTTPS through the operating system; see "SSL certificate errors" in the README.
+truststore = ["truststore>=0.10"]
+dev = ["pytest>=8", "ruff>=0.15", "pypdf>=4", "truststore>=0.10"]
 # Browser tests for the web interface (tests_browser/); see docs/development.md.
 browser = ["pytest>=8", "playwright>=1.40"]
 
