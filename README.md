@@ -67,6 +67,7 @@ library.
 | `markfind fetch [--older-than AGE] [--failed] [--all]` | Download pages not fetched yet. `--older-than 90d` also refreshes pages fetched more than 90 days ago, `--failed` retries failed ones, `--all` re-fetches everything. Tuning: `--workers N` (default 8), `--timeout S` (default 10), `--delay S` between requests to the same site (default 1), `--max-retry-wait S` for sites that say "too many requests" (default 60). |
 | `markfind search WORDS... [-n N] [--raw] [--folder PATH] [--tag TAG]` | Search titles, URLs, folders, tags and page text, best matches first. `--folder` keeps one folder and its subfolders, `--tag` one tag. `--raw` passes [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax) through, e.g. `--raw 'title:python OR rust'`. |
 | `markfind similar URL [-n N]` | "More like this": bookmarks most like this one, and the distinctive words they share. |
+| `markfind topics [--count N]` | Group your bookmarks into topics by what their pages say, each named by its most telling words. |
 | `markfind list [--folder PATH] [--tag TAG]` | List bookmarks, optionally one folder and its subfolders, or one tag. |
 | `markfind tags` | Tags from Firefox and your own, with how many bookmarks have each. |
 | `markfind tag URL TAG...` | Add your own tags to a bookmark (`--remove` takes them off). Imports never change them. |

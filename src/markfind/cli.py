@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import sys
@@ -15,7 +16,7 @@ from pathlib import Path
 from . import __version__
 from .archive import render
 from .browsers import BROWSERS, find_sources
-from .duplicates import MIN_SIMILARITY, REASONS
+from .duplicates import MIN_SIMILARITY, REASONS, Entry
 from .extract import Page
 from .fetch import (
     DEAD_KINDS,
@@ -30,6 +31,7 @@ from .formats import FORMATS, to_markdown
 from .importers import clean_tags, load_file
 from .server import DEFAULT_HOST, DEFAULT_PORT, serve
 from .store import Failure, QueryError, Store, to_fts_query
+from .topics import MIN_SIZE
 
 _DURATION_UNITS = {"h": "hours", "d": "days", "w": "weeks"}
 
@@ -371,6 +373,63 @@ def cmd_note(store: Store, args: argparse.Namespace) -> int:
         print("no note on this bookmark", file=sys.stderr)
         return 1
     print(note)
+    return 0
+
+
+def _positive(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"invalid number {text!r} (1 or more)")
+    return value
+
+
+def cmd_topics(store: Store, args: argparse.Namespace) -> int:
+    found = store.topics(count=args.count, min_size=args.min_size, folder=args.folder)
+
+    def entry(e: Entry) -> dict[str, str]:
+        return {"url": e.url, "title": e.title, "folder": e.folder}
+
+    if args.json:
+        data = {
+            "topics": [
+                {"label": t.label, "bookmarks": [entry(e) for e in t.entries]} for t in found.topics
+            ],
+            "other": [entry(e) for e in found.other],
+            "unindexed": found.unindexed,
+        }
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        return 0
+
+    indexed = sum(len(t.entries) for t in found.topics) + len(found.other)
+    if not indexed:
+        print("no indexed bookmarks to group; run 'markfind fetch' first")
+        return 1
+    print(
+        f"{len(found.topics)} topic{'' if len(found.topics) == 1 else 's'}"
+        f" in {indexed} indexed bookmark{'' if indexed == 1 else 's'}"
+    )
+    for t in found.topics:
+        print()
+        print(f"{' · '.join(t.label)} ({len(t.entries)}):")
+        for e in t.entries:
+            print(f"  {e.title or e.url}")
+            print(f"    {e.url}")
+    if found.other:
+        print()
+        print(f"No clear topic ({len(found.other)}):")
+        for e in found.other:
+            print(f"  {e.title or e.url}")
+            print(f"    {e.url}")
+    if found.unindexed:
+        print()
+        n = found.unindexed
+        print(
+            f"{n} bookmark{'' if n == 1 else 's'} without page text"
+            f" {'is' if n == 1 else 'are'}n't included; 'markfind fetch' adds them."
+        )
     return 0
 
 
@@ -727,6 +786,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("text", nargs="*", help="the note; quotes are optional")
     p.add_argument("--clear", action="store_true", help="remove the note")
     p.set_defaults(func=cmd_note)
+
+    p = sub.add_parser(
+        "topics",
+        help="group bookmarks into topics by their words",
+        description=(
+            "Group indexed bookmarks into topics by the words their pages use, and"
+            " name each topic by its most telling words. No folders or tags needed."
+        ),
+    )
+    p.add_argument(
+        "--count",
+        type=_positive,
+        metavar="N",
+        help="how many topics to look for (default: chosen from the number of bookmarks)",
+    )
+    p.add_argument(
+        "--min-size",
+        type=_positive,
+        default=MIN_SIZE,
+        metavar="N",
+        help=(
+            f"smallest topic to show; smaller ones go under 'No clear topic' (default: {MIN_SIZE})"
+        ),
+    )
+    p.add_argument("--folder", help="only this folder and its subfolders")
+    p.add_argument("--json", action="store_true", help="print the topics as JSON")
+    p.set_defaults(func=cmd_topics)
 
     p = sub.add_parser(
         "duplicates",

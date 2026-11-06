@@ -10,7 +10,8 @@ markfind [--db PATH] COMMAND [options]
 | `--version` | Print the version and exit. |
 
 Commands: [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
-[`search`](#search) · [`similar`](#similar) · [`list`](#list) · [`tags`](#tags) ·
+[`search`](#search) · [`similar`](#similar) · [`topics`](#topics) · [`list`](#list) ·
+[`tags`](#tags) ·
 [`tag`](#tag) · [`note`](#note) ·
 [`duplicates`](#duplicates) · [`broken`](#broken) · [`export`](#export) ·
 [`archive`](#archive) · [`stats`](#stats) · [`serve`](#serve)
@@ -335,6 +336,50 @@ Exit codes:
 - 0: results found
 - 1: no similar bookmarks
 - 2: the URL isn't in markfind
+
+---
+
+## topics
+
+```text
+markfind topics [--count N] [--min-size N] [--folder PATH] [--json]
+```
+
+Groups your indexed bookmarks into topics by the words their pages use, with
+no folders or tags needed, and names each topic by its most telling words.
+
+```text
+$ markfind topics
+14 topics in 480 indexed bookmarks
+
+database · sqlite · query (31):
+  SQLite FTS5 Extension
+    https://sqlite.org/fts5.html
+  ...
+
+recipe · bake · flour (12):
+  ...
+
+No clear topic (9):
+  ...
+```
+
+Within a topic, the most typical bookmarks come first.
+
+| Option | Meaning |
+|---|---|
+| `--count N` | How many topics to look for. By default markfind picks about √(bookmarks / 2), then merges topics that turn out to be about the same thing. With `--count`, you get that many (fewer only if some are too small). |
+| `--min-size N` | Topics with fewer bookmarks are dissolved into *No clear topic* (default 3). |
+| `--folder PATH` | Only this folder and its subfolders, to sort out one big folder. |
+| `--json` | Print `{"topics": [{label, bookmarks: [{url, title, folder}]}], "other": [...], "unindexed": N}`. |
+
+Only bookmarks with page text take part; the end of the report says how many
+were left out. Topics come from the words on the pages, so a few dozen
+indexed bookmarks is the least that gives useful groups. The same bookmarks
+always give the same topics. See
+[How it works](how-it-works.md#topics) for the method.
+
+Exit code 1 if there are no indexed bookmarks.
 
 ---
 

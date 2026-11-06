@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- New `markfind topics`: groups your bookmarks into topics by the words
+  their pages use, with no folders or tags needed, and names each topic by
+  its most telling words.
+  - **Options:** `--count`, `--min-size`, `--folder` and `--json`.
+  - **Results:** the same bookmarks always give the same topics.
+  - **Python API:** `Store.topics()` (#49).
+
 - PDF bookmarks are indexed when the optional `pypdf` package is installed
   (`pip install "markfind[pdf]"`).
   - **What's read:** their text and title, from the first 300 pages. The
