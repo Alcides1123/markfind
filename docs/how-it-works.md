@@ -16,6 +16,7 @@ The code is small and has one module per stage, all in `src/markfind/`:
 | `extract.py` | Turn HTML into the page's main text |
 | `store.py` | SQLite schema, migrations, the FTS5 index, search |
 | `duplicates.py` | URL normalization, duplicate grouping and near-duplicate text matching |
+| `pdf.py` | Reading text and titles from PDFs, with the optional `pypdf` |
 | `topics.py` | Grouping pages into topics: TF-IDF vectors and spherical k-means |
 | `archive.py` | Showing a saved copy as a standalone page |
 | `server.py` | The local web interface (`markfind serve`) and its JSON API |

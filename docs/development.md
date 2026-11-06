@@ -42,6 +42,7 @@ The tests never touch the network:
 | `test_store.py` | Storage, indexing and search |
 | `test_folders.py` | The folder tree, searching one folder (including names with `%` and `_`), `search --folder` |
 | `test_similar.py` | `markfind similar`: keyword choice, ranking, stemming, read-only use |
+| `test_pdf.py` | PDF bookmarks: reading text and titles, limits, damaged and scanned files, running without `pypdf` |
 | `test_topics.py` | `markfind topics`: vectors, clustering, merging split topics, labels, the command |
 | `test_notes.py` | Your own tags and notes, kept apart from imports |
 | `test_saved_copies.py` | Saved copies: sanitizing, storage, `markfind archive`, the sandboxed `/archive` page |
