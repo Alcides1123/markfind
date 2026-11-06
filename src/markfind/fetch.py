@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import functools
+import os
 import re
 import socket
 import ssl
@@ -173,6 +175,24 @@ def sniff_content_type(declared: str | None, body: bytes) -> str | None:
     return "text/plain"
 
 
+@functools.cache
+def _ssl_context() -> ssl.SSLContext | None:
+    """A context that verifies through the operating system, if ``truststore`` is installed.
+
+    Python's own ssl module only sees root certificates already on the machine,
+    and Windows downloads them when first needed, so sites with perfectly good
+    certificates can fail. Without truststore, or if the user chose certificates
+    with SSL_CERT_FILE or SSL_CERT_DIR, this is None: Python's default.
+    """
+    if os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR"):
+        return None
+    try:
+        import truststore
+    except ImportError:
+        return None
+    return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+
 def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> Page:
     request = urllib.request.Request(
         url,
@@ -183,7 +203,9 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
             ),
         },
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    context = _ssl_context()
+    options = {"context": context} if context else {}
+    with urllib.request.urlopen(request, timeout=timeout, **options) as response:
         # get_content_type() reports a missing header as text/plain, so check
         # for the header itself.
         declared = (

@@ -5,6 +5,12 @@
 - markfind is on PyPI: install it with `pipx install markfind` or
   `python -m pip install markfind`.
 
+- HTTPS certificates: if the optional `truststore` package is installed
+  (`markfind[truststore]`), markfind verifies through the operating system, so
+  sites with good certificates no longer fail on Windows machines that haven't
+  downloaded their root certificate yet. The README and the hint after a failed
+  fetch no longer blame the site (#63).
+
 - New `scripts/rank_eval.py` measures search ranking on your own searches, tries
   other weights, and says whether a change is justified. `RANK_WEIGHTS` hasn't
   changed: that needs a set of real searches (#48).
