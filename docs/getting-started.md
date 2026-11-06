@@ -5,15 +5,18 @@
 markfind needs Python 3.10 or newer and has no other dependencies.
 
 ```sh
-git clone https://github.com/Alcides1123/markfind.git
-cd markfind
-python -m pip install -e .
+pipx install markfind
 markfind --version
 ```
 
-To try it without your own bookmarks first, run the offline demo:
+`python -m pip install markfind` works too.
+
+To try it without your own bookmarks first, run the offline demo, which is in
+the repository:
 
 ```sh
+git clone https://github.com/Alcides1123/markfind.git
+cd markfind
 python examples/offline_demo.py
 ```
 

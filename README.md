@@ -19,14 +19,20 @@ third-party runtime dependencies.
 ## Install
 
 ```sh
+pipx install markfind
+```
+
+`python -m pip install markfind` works too. To index bookmarked PDFs as well,
+add the optional `pypdf` dependency with `pipx install "markfind[pdf]"`.
+Everything else needs only the standard library.
+
+To work on markfind itself, install it from a checkout:
+
+```sh
 git clone https://github.com/Alcides1123/markfind.git
 cd markfind
 python -m pip install -e .
 ```
-
-To index bookmarked PDFs too, install the optional `pypdf` dependency with
-`python -m pip install -e ".[pdf]"`. Everything else needs only the standard
-library.
 
 ## Usage
 
