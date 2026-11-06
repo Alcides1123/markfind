@@ -92,6 +92,19 @@ other site are answered locally, so the tests never use the network.
 - **Build**: builds the sdist and wheel, runs `twine check`, installs the
   wheel in a clean virtualenv and runs `markfind --version`.
 
+[`.github/workflows/macos.yml`](../.github/workflows/macos.yml) runs the tests on
+macOS with Python 3.13, then starts a real Firefox and imports its profile with
+`markfind sync`. It's a separate workflow because macOS runners don't always
+arrive: a job can wait out its 15-minute timeout without starting, shown as
+*cancelled* with no steps. That says nothing about the code, so rerun it. It runs
+on pushes to `main`, weekly, on demand, and on branches with `macos` in their name.
+
+Safari can't be checked this way. On a CI runner, Safari doesn't write
+`Bookmarks.plist` until something is saved, saving through AppleScript waits on a
+permission prompt nobody can answer, and the Safari folder is readable without
+Full Disk Access. So Safari's tests use fixture files, one of them written by
+Apple's `plutil`.
+
 ## Workflow
 
 1. Open an issue that describes the change, its acceptance criteria and any

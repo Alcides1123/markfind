@@ -11,7 +11,7 @@ Each item has an issue with the details, and a rough estimate.
 | #49 | ~~Group bookmarks into topics automatically (`markfind topics`)~~ (done) | 8 h |
 | #50 | ~~Decide how to treat pages marked `noindex`~~ (done) | 1.5 h |
 | #51 | Publish to PyPI, with a release workflow | 3 h |
-| #52 | Run CI on macOS and check Safari support on a real Mac | 2 h |
+| #52 | ~~Run CI on macOS~~ (done) and check Safari support on a real Mac | 2 h |
 | #53 | ~~Browser tests for the web interface~~ (done) | 4 h |
 | | **Total** | **29.5 h** |
 
@@ -65,5 +65,6 @@ The sections below list everything by theme, done and planned.
 - [x] Save an archived copy of each page so results survive link rot (#45)
 - [x] CI: GitHub Actions with lint, tests on Linux and Windows, and a package build (#3)
 - [ ] Publish to PyPI (#51)
-- [ ] Run CI on macOS too (dropped in #5 because jobs never got a runner) (#52)
+- [x] Test on macOS too, in a separate workflow since runners don't always arrive (#52)
+- [ ] Check Safari import and the Full Disk Access message on a real Mac (#52)
 - [x] Browser tests for the web interface (#53)

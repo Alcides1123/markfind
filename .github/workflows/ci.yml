@@ -42,8 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macOS is left out: its jobs never got a runner on this repo and sat
-        # queued until cancelled. markfind has no macOS-specific code paths.
+        # macOS has its own workflow, macos.yml: its runners don't always arrive.
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.13"]
         include:

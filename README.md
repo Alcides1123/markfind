@@ -141,7 +141,8 @@ ruff check . && ruff format --check .
 
 Every push runs [CI](.github/workflows/ci.yml): ruff lint and format checks,
 the test suite on Linux and Windows (Python 3.10–3.13), and a package
-build with a smoke test of the installed wheel. See
+build with a smoke test of the installed wheel. A separate workflow tests on
+macOS. See
 [docs/development.md](docs/development.md) for the workflow, schema
 migrations and releases.
 
