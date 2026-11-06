@@ -175,7 +175,7 @@ What gets indexed:
   text. See [text extraction](how-it-works.md#text-extraction).
 - `text/plain` and Markdown pages are indexed as they are.
 - PDFs are indexed when the optional `pypdf` package is installed
-  (`pip install "markfind[pdf]"`):
+  (`pipx inject markfind pypdf`, or `python -m pip install pypdf`):
   - their text and title are read from the first 300 pages;
   - the [saved copy](#archive) is the text, page by page;
   - without `pypdf`, a PDF is an `unsupported` failure whose message says

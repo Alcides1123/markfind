@@ -79,7 +79,7 @@ def test_without_pypdf_pdfs_are_unsupported_with_a_hint(monkeypatch):
     with pytest.raises(PdfUnsupportedError) as error:
         extract_pdf(PAPER)
     assert str(error.value) == INSTALL_HINT
-    assert 'pip install "markfind[pdf]"' in INSTALL_HINT
+    assert "pipx inject markfind pypdf" in INSTALL_HINT and "pip install pypdf" in INSTALL_HINT
 
 
 # --- with pypdf ---------------------------------------------------------------
