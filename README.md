@@ -23,7 +23,8 @@ pipx install markfind
 ```
 
 `python -m pip install markfind` works too. To index bookmarked PDFs as well,
-add the optional `pypdf` dependency with `pipx install "markfind[pdf]"`.
+add the optional `pypdf` dependency with `pipx inject markfind pypdf` (or
+`python -m pip install pypdf`).
 Everything else needs only the standard library.
 
 To work on markfind itself, install it from a checkout:
@@ -117,7 +118,8 @@ your operating system, as browsers do. markfind uses it automatically once
 it's installed. It also covers antivirus and company proxies that inspect HTTPS.
 
 ```sh
-python -m pip install truststore
+pipx inject markfind truststore    # if you installed with pipx
+python -m pip install truststore   # if you installed with pip
 ```
 
 Then run `markfind fetch --failed`. Other fixes:
