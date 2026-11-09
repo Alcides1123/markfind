@@ -1,7 +1,7 @@
 """Text from bookmarked PDFs, with the optional ``pypdf`` package.
 
 markfind itself needs only the standard library; PDFs are indexed when
-``pypdf`` is installed (``pip install "markfind[pdf]"``). Without it, PDFs are
+``pypdf`` is installed (the ``pdf`` extra). Without it, PDFs are
 reported as unsupported, with a hint saying how to add support.
 """
 
@@ -19,7 +19,7 @@ from .extract import Page, normalize
 MAX_PDF_BYTES = 30_000_000
 MAX_PAGES = 300
 
-INSTALL_HINT = 'PDF: install pypdf to index PDFs (pip install "markfind[pdf]")'
+INSTALL_HINT = "PDF: install pypdf to index PDFs (pipx inject markfind pypdf, or pip install pypdf)"
 NO_TEXT_MESSAGE = "no text found in the PDF; it may be scanned images"
 
 
