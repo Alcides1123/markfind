@@ -393,7 +393,8 @@ Within a topic, the most typical bookmarks come first.
 | `--json` | Print `{"topics": [{label, bookmarks: [{url, title, folder}]}], "other": [...], "unindexed": N}`. |
 
 Only bookmarks with page text take part; the end of the report says how many
-were left out. Topics come from the words on the pages, so a few dozen
+were left out. Large collections are grouped from a sample of a few thousand
+pages, so this stays quick; every bookmark is still placed. Topics come from the words on the pages, so a few dozen
 indexed bookmarks is the least that gives useful groups. The same bookmarks
 always give the same topics. See
 [How it works](how-it-works.md#topics) for the method.

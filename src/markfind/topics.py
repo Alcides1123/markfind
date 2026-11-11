@@ -21,6 +21,10 @@ set with other subjects; see scripts/topics_eval.py. Synthetic pages are a poor
 guide: settings that looked perfect on them put unrelated subjects together on
 real ones.
 
+Above CLUSTER_SAMPLE pages the centres come from a sample of that size, which
+keeps a large collection to seconds rather than many minutes; every page is
+then placed against those centres.
+
 The clustering is deterministic: the same pages give the same topics.
 """
 
@@ -47,6 +51,10 @@ RESTARTS = 4
 MERGE_SIMILARITY = 0.15
 # Start from one topic per this many pages, before merging.
 PAGES_PER_TOPIC = 3
+# Pages used to find the centres. The clustering is iterative and every pass
+# touches every page, so beyond this a sample stands in for the collection and
+# the rest are placed against the finished centres in a single pass.
+CLUSTER_SAMPLE = 3000
 LABEL_TERMS = 3
 
 Vector = dict[str, float]
@@ -222,19 +230,28 @@ def cluster(
     usable = [i for i, v in enumerate(vecs) if v]
     if not usable:
         return Clusters([], [], list(range(len(vecs))))
-    k = min(count or default_count(len(usable)), len(usable))
+
+    # Beyond CLUSTER_SAMPLE pages the centres are found from a sample: the
+    # iterative part then costs the same whatever the collection size. Every
+    # page is still placed, against the finished centres, further down.
+    sample = usable
+    if len(usable) > CLUSTER_SAMPLE:
+        sample = sorted(random.Random(seed).sample(usable, CLUSTER_SAMPLE))
+    k = min(count or default_count(len(usable)), len(sample))
 
     postings: dict[str, list[tuple[int, float]]] = defaultdict(list)
-    for j, i in enumerate(usable):
+    for j, i in enumerate(sample):
         for term, weight in vecs[i].items():
             postings[term].append((j, weight))
     # Keep the run whose pages are, in total, closest to their topics.
-    runs = [_kmeans(vecs, usable, postings, k, seed + n) for n in range(RESTARTS)]
+    runs = [_kmeans(vecs, sample, postings, k, seed + n) for n in range(RESTARTS)]
     centres, assignment = max(
         runs, key=lambda run: sum(similarity for _, similarity in run[1].values())
     )
     if count is None:
-        centres, assignment = _lloyd(vecs, usable, _merged(vecs, centres, assignment))
+        centres, assignment = _lloyd(vecs, sample, _merged(vecs, centres, assignment))
+    if sample is not usable:
+        assignment = _assign(vecs, usable, centres)
 
     groups: list[list[tuple[float, int]]] = [[] for _ in centres]
     other = [i for i in range(len(vecs)) if i not in assignment]
