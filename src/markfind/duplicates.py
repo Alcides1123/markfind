@@ -9,7 +9,8 @@ same sentences, as with a page saved again after a small edit.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable
+from array import array
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
@@ -143,22 +144,42 @@ def shingles(text: str, size: int = SHINGLE_WORDS) -> frozenset[int]:
     return frozenset(map(hash, zip(*(words[i:] for i in range(size)), strict=False)))
 
 
-def similarity(a: frozenset[int], b: frozenset[int]) -> float:
-    """Jaccard similarity of two shingle sets: shared phrases / all phrases."""
+def packed_shingles(text: str, size: int = SHINGLE_WORDS) -> array[int]:
+    """The same hashes as ``shingles``, as a sorted array of machine integers.
+
+    A few hundred hashes cost about 50 KB a page as a frozenset, because each
+    one is a separate Python object; in an array they cost 8 bytes each. Over
+    a few thousand pages that is the difference between comparing them all and
+    running out of memory.
+    """
+    return array("q", sorted(shingles(text, size)))
+
+
+def _as_set(phrases: Collection[int]) -> Collection[int]:
+    return phrases if isinstance(phrases, (set, frozenset)) else set(phrases)
+
+
+def similarity(a: Collection[int], b: Collection[int]) -> float:
+    """Jaccard similarity of two shingle sets: shared phrases / all phrases.
+
+    Takes either form: ``shingles`` sets or ``packed_shingles`` arrays.
+    """
     if not a or not b:
         return 0.0
-    shared = len(a & b)
+    shared = len(_as_set(a) & _as_set(b))
     return shared / (len(a) + len(b) - shared)
 
 
 def near_pairs(
-    sets: list[frozenset[int]], min_similarity: float = MIN_SIMILARITY
+    sets: Sequence[Collection[int]], min_similarity: float = MIN_SIMILARITY
 ) -> list[tuple[int, int, float]]:
     """Pairs ``(i, j, similarity)`` of sets at least ``min_similarity`` alike, i < j.
 
     Only pairs sharing an uncommon phrase from a fixed sample are compared, so
     the work grows with the number of real matches rather than with every pair
     of pages. Each candidate's similarity is then computed exactly.
+
+    Takes either form: ``shingles`` sets or ``packed_shingles`` arrays.
     """
     pages_with: dict[int, list[int]] = {}
     for i, phrases in enumerate(sets):
@@ -231,7 +252,7 @@ def find_duplicates(
     by_text: dict[str, list[Entry]] = {}
     canonical: dict[str, str] = {}
     texts: dict[str, str] = {}  # url -> text key, for pages long enough
-    near: list[tuple[Entry, frozenset[int]]] = []
+    near: list[tuple[Entry, array[int]]] = []
     for url, title, folder, text in pages:
         entry = Entry(url, title, folder)
         canonical[url] = canonical_url(url)
@@ -241,7 +262,7 @@ def find_duplicates(
             texts[url] = key
             by_text.setdefault(key, []).append(entry)
             if "similar" in by:
-                near.append((entry, shingles(text)))
+                near.append((entry, packed_shingles(text)))
 
     groups = []
     if "url" in by:

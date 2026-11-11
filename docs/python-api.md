@@ -133,8 +133,9 @@ syntax.
 | `text_key(text, min_words=50)` | A fingerprint of the text ignoring case and spacing, or `None` if it's shorter than `min_words`. |
 | `find_duplicates(pages, by=REASONS, min_words=50, min_similarity=0.8)` | `list[Group]` from `(url, title, folder, text)` rows: same-URL groups, then same-text, then nearly-same-text. `REASONS` is `("url", "text", "similar")`. |
 | `shingles(text, size=5)` | The set of hashes of every `size`-word run in the text, ignoring case and spacing. Comparable only within one process. |
-| `similarity(a, b)` | Jaccard similarity of two `shingles` sets, from 0 to 1. |
-| `near_pairs(sets, min_similarity=0.8)` | `(i, j, similarity)` for every pair of sets at least that alike, without comparing every pair. |
+| `packed_shingles(text, size=5)` | The same hashes as `shingles`, in a sorted `array("q")`. Eight bytes each instead of a Python object each, which is what `find_duplicates` uses so a large collection fits in memory. |
+| `similarity(a, b)` | Jaccard similarity of two shingle sets, from 0 to 1. Takes either form. |
+| `near_pairs(sets, min_similarity=0.8)` | `(i, j, similarity)` for every pair of sets (either form) at least that alike, without comparing every pair. |
 
 A **`Group`** has `reason` (`"url"`, `"text"` or `"similar"`), `entries` (a
 list of **`Entry(url, title, folder)`**, the cleanest URL first), `title`, and
