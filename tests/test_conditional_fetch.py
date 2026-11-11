@@ -189,18 +189,33 @@ def test_set_unchanged_keeps_the_text_and_the_copy(db):
         assert store.saved_copy("https://good.example/").html
 
 
-@pytest.mark.skipif(
-    sqlite3.sqlite_version_info < (3, 35), reason="ALTER TABLE ... DROP COLUMN needs SQLite 3.35"
-)
+# The bookmarks table as version 6 created it, before the validator columns.
+VERSION_6 = """
+    DROP TABLE bookmarks;
+    CREATE TABLE bookmarks (
+        id INTEGER PRIMARY KEY,
+        url TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL DEFAULT '',
+        folder TEXT NOT NULL DEFAULT '',
+        added_at TEXT,
+        fetched_at TEXT,
+        fetch_error TEXT,
+        error_kind TEXT,
+        source TEXT,
+        tags TEXT NOT NULL DEFAULT '',
+        browser_tags TEXT NOT NULL DEFAULT '',
+        my_tags TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT ''
+    );
+    PRAGMA user_version = 6;
+"""
+
+
 def test_migration_adds_the_validator_columns(tmp_path):
     path = tmp_path / "db.sqlite"
     Store(path).close()
     db = sqlite3.connect(path)
-    db.executescript(
-        "ALTER TABLE bookmarks DROP COLUMN etag;"
-        "ALTER TABLE bookmarks DROP COLUMN last_modified;"
-        "PRAGMA user_version = 6;"
-    )
+    db.executescript(VERSION_6)
     db.close()
     with Store(path) as store:
         assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
