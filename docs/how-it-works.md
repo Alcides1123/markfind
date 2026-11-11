@@ -393,9 +393,19 @@ servers, Redis split in two, and 2 pages had no clear topic. These are encyclope
 and documentation pages, so a real collection may do worse. Pairs of similar pages
 stay in *No clear topic* under the default `--min-size` of 3.
 
-3,000 synthetic pages of 800 words each take under a minute. The same run still finds
-all 30 subjects, but this is a poor test of quality: the earlier settings were also
-perfect on it.
+**Large collections.** Every k-means pass touches every page, so past
+`CLUSTER_SAMPLE` (3,000) pages the centres are found from a sample of that size
+and the rest of the pages are placed against the finished centres in one pass.
+The iterative part then costs about the same whatever the collection size:
+
+| Pages | Before | Now |
+|---|---|---|
+| 5,000 | 99.5 s | 33.7 s |
+| 10,000 | 529.1 s | 36.8 s |
+
+On a synthetic collection of 10,000 pages in 10 subjects, the sampled run still
+recovers all 10 exactly, with nothing left unsorted. Below the threshold nothing
+is sampled, so those collections give exactly the topics they gave before.
 
 ## Saved copies
 

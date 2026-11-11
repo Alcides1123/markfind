@@ -107,6 +107,48 @@ def test_small_topics_and_loners_go_to_other():
     assert found.other == [len(vecs)]
 
 
+# --- large collections ------------------------------------------------------------
+
+
+def big(monkeypatch, sample):
+    """A collection well past the sampling threshold, with 3 known subjects."""
+    monkeypatch.setattr(topics, "CLUSTER_SAMPLE", sample)
+    rows = pages(per_subject=40)  # 120 pages, 3 subjects
+    return rows, vectors(term_counts(rows))
+
+
+def test_a_sampled_run_still_places_every_page(monkeypatch):
+    rows, vecs = big(monkeypatch, 30)
+    found = cluster(vecs)
+    # The sample finds the centres; every page is then placed against them.
+    assert sum(len(g) for g in found.groups) + len(found.other) == len(rows)
+    assert sorted(i for g in found.groups for i in g) + found.other == list(range(len(rows)))
+
+
+def test_a_sampled_run_still_finds_the_subjects(monkeypatch):
+    rows, vecs = big(monkeypatch, 30)
+    found = cluster(vecs)
+    assert sorted(sorted({rows[i][2] for i in g}) for g in found.groups) == [
+        ["astronomy"],
+        ["cooking"],
+        ["databases"],
+    ]
+
+
+def test_sampling_is_deterministic(monkeypatch):
+    _, vecs = big(monkeypatch, 30)
+    assert cluster(vecs) == cluster(vecs)
+
+
+def test_a_collection_under_the_threshold_is_not_sampled(monkeypatch):
+    rows = pages(per_subject=8)
+    vecs = vectors(term_counts(rows))
+    monkeypatch.setattr(topics, "CLUSTER_SAMPLE", len(rows))
+    whole = cluster(vecs)
+    monkeypatch.setattr(topics, "CLUSTER_SAMPLE", 10_000)
+    assert whole == cluster(vecs)
+
+
 def test_cluster_edge_cases():
     assert cluster([]) == Clusters([], [], [])
     assert cluster([{}, {}]) == Clusters([], [], [0, 1])

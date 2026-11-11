@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `markfind topics` no longer crawls on a large collection. Past 3,000 indexed
+  pages it finds the topics from a sample of that size and then places every
+  page against them, which took 10,000 bookmarks from about 9 minutes down to
+  37 seconds. Smaller collections are unchanged, and on a synthetic 10,000-page
+  set in 10 subjects the sampled run still recovers all 10 exactly (#74).
+
 - Fixed: `markfind duplicates` could run out of memory on a large collection.
   It kept every page's phrase hashes as a set of Python objects, costing about
   50 KB a page; they are now packed into an array at 8 bytes each. Peak memory
