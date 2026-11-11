@@ -401,7 +401,7 @@ The iterative part then costs about the same whatever the collection size:
 | Pages | Before | Now |
 |---|---|---|
 | 5,000 | 99.5 s | 33.7 s |
-| 10,000 | over 25 minutes | 36.8 s |
+| 10,000 | 529.1 s | 36.8 s |
 
 On a synthetic collection of 10,000 pages in 10 subjects, the sampled run still
 recovers all 10 exactly, with nothing left unsorted. Below the threshold nothing

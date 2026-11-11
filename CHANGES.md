@@ -4,7 +4,7 @@
 
 - `markfind topics` no longer crawls on a large collection. Past 3,000 indexed
   pages it finds the topics from a sample of that size and then places every
-  page against them, which took 10,000 bookmarks from over 25 minutes down to
+  page against them, which took 10,000 bookmarks from about 9 minutes down to
   37 seconds. Smaller collections are unchanged, and on a synthetic 10,000-page
   set in 10 subjects the sampled run still recovers all 10 exactly (#74).
 
