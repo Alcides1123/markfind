@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fixed: a bookmark pointing at a page that only redirects, through
+  `<meta http-equiv="refresh">`, was indexed as the stub. One real example
+  indexed 28 characters of "Click here to be redirected." instead of the
+  7,000-word article it pointed to. Such pages are now followed, up to three
+  hops; a page merely set to reload itself is left alone. Run
+  `markfind fetch --all` to re-index bookmarks affected by this (#76).
+
 - `markfind topics` no longer crawls on a large collection. Past 3,000 indexed
   pages it finds the topics from a sample of that size and then places every
   page against them, which took 10,000 bookmarks from about 9 minutes down to
