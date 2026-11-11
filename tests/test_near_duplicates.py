@@ -5,7 +5,13 @@ import random
 import pytest
 
 from markfind import cli
-from markfind.duplicates import find_duplicates, near_pairs, shingles, similarity
+from markfind.duplicates import (
+    find_duplicates,
+    near_pairs,
+    packed_shingles,
+    shingles,
+    similarity,
+)
 from markfind.extract import Page
 
 
@@ -41,6 +47,31 @@ def test_shingles_and_similarity():
     # 300 words make 296 phrases. A changed word is in 5 of them: 291 shared,
     # 5 old and 5 new ones, so 291 / 301.
     assert similarity(shingles(ARTICLE), shingles(edit(ARTICLE, 1))) == pytest.approx(291 / 301)
+
+
+def test_packed_shingles_hold_the_same_phrases():
+    # The packed form exists so a large collection fits in memory: the same
+    # hashes, 8 bytes each instead of a Python object each.
+    packed = packed_shingles(ARTICLE)
+    assert packed.itemsize == 8
+    assert set(packed) == shingles(ARTICLE)
+    assert list(packed) == sorted(packed)  # deterministic, so it can be compared
+    assert len(packed_shingles("too few words")) == 0
+
+
+@pytest.mark.parametrize("pack", [shingles, packed_shingles])
+def test_similarity_takes_either_form(pack):
+    a, b = pack(ARTICLE), pack(edit(ARTICLE, 1))
+    assert similarity(a, a) == 1.0
+    assert similarity(a, b) == pytest.approx(291 / 301)
+    assert similarity(a, pack("")) == 0.0
+
+
+def test_packed_and_unpacked_find_the_same_pairs():
+    texts = (ARTICLE, text(2), edit(ARTICLE, 3), text(3))
+    assert near_pairs([packed_shingles(t) for t in texts]) == near_pairs(
+        [shingles(t) for t in texts]
+    )
 
 
 def test_near_pairs():

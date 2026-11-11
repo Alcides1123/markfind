@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed: `markfind duplicates` could run out of memory on a large collection.
+  It kept every page's phrase hashes as a set of Python objects, costing about
+  50 KB a page; they are now packed into an array at 8 bytes each. Peak memory
+  is about a quarter of what it was (4,000 bookmarks: 256 MB down to 70 MB),
+  and 10,000 bookmarks now complete. The groups found are unchanged (#72).
+
 - New `markfind fetch --if-changed` keeps the index fresh without downloading
   pages that haven't changed. markfind now remembers each page's `ETag` and
   `Last-Modified`, sends them back on a re-fetch, and skips the pages the
