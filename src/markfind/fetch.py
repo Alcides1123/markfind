@@ -12,8 +12,9 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html import escape
@@ -41,6 +42,13 @@ class FetchError(Exception):
 
 class UnsupportedContentError(FetchError):
     pass
+
+
+class NotModified(Exception):
+    """HTTP 304: the server says the page has not changed since the last fetch.
+
+    Not a FetchError: nothing went wrong, there is simply nothing to re-index.
+    """
 
 
 class EmptyPageError(FetchError):
@@ -196,19 +204,39 @@ def _ssl_context() -> ssl.SSLContext | None:
     return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 
-def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> Page:
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Accept": (
-                "text/html,application/xhtml+xml,text/plain;q=0.9,application/pdf;q=0.8,*/*;q=0.1"
-            ),
-        },
-    )
+def fetch_page(
+    url: str,
+    timeout: float = 10.0,
+    max_bytes: int = MAX_BYTES,
+    validators: tuple[str, str] | None = None,
+) -> Page:
+    """Download a page and extract its text.
+
+    ``validators`` is the (ETag, Last-Modified) pair from the last fetch. Given
+    one, the request asks the server to answer only if the page changed, and
+    NotModified is raised when it says it has not.
+    """
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": (
+            "text/html,application/xhtml+xml,text/plain;q=0.9,application/pdf;q=0.8,*/*;q=0.1"
+        ),
+    }
+    etag, last_modified = validators or ("", "")
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    request = urllib.request.Request(url, headers=headers)
     context = _ssl_context()
     options = {"context": context} if context else {}
-    with urllib.request.urlopen(request, timeout=timeout, **options) as response:
+    try:
+        response = urllib.request.urlopen(request, timeout=timeout, **options)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 304:
+            raise NotModified(url) from None
+        raise
+    with response:
         # get_content_type() reports a missing header as text/plain, so check
         # for the header itself.
         declared = (
@@ -219,6 +247,9 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         # Very large pages are truncated rather than skipped.
         raw = response.read(max_bytes)
         charset = response.headers.get_content_charset() or "utf-8"
+        # Kept for the next conditional re-fetch.
+        etag = response.headers.get("ETag", "")
+        last_modified = response.headers.get("Last-Modified", "")
         final_url = response.geturl() or url  # after redirects, for links in the copy
         content_type = sniff_content_type(declared, raw)
         if content_type == "application/pdf" and len(raw) == max_bytes:
@@ -233,7 +264,7 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         raise UnsupportedContentError("unsupported content: binary data with no content type")
     if content_type == "application/pdf":
         try:
-            return extract_pdf(raw)
+            return replace(extract_pdf(raw), etag=etag, last_modified=last_modified)
         except PdfUnsupportedError as exc:
             raise UnsupportedContentError(str(exc)) from exc
         except PdfEmptyError as exc:
@@ -252,7 +283,7 @@ def fetch_page(url: str, timeout: float = 10.0, max_bytes: int = MAX_BYTES) -> P
         page = extract_text(body, base_url=final_url)
     if not page.text:
         raise EmptyPageError(EMPTY_MESSAGE)
-    return page
+    return replace(page, etag=etag, last_modified=last_modified)
 
 
 def host_of(url: str) -> str:
@@ -319,6 +350,7 @@ def fetch_many(
     limiter: HostLimiter | None = None,
     max_retry_wait: float = MAX_RETRY_WAIT,
     retries: int = RETRIES,
+    validators: Mapping[int, tuple[str, str]] | None = None,
 ) -> Iterator[tuple[int, str, Page | Exception]]:
     """Fetch (id, url) pairs concurrently, yielding results as they finish.
 
@@ -327,14 +359,21 @@ def fetch_many(
     retried up to ``retries`` times, after the wait the server asks for, unless
     that's longer than ``max_retry_wait`` seconds; meanwhile the whole host
     waits.
+
+    ``validators`` maps an id to the (ETag, Last-Modified) of its last fetch;
+    those pages are asked for only if they changed, and a NotModified is
+    yielded for the ones that have not.
     """
     limiter = limiter or HostLimiter()
+    validators = validators or {}
 
-    def task(url: str) -> Page:
+    def task(id_: int, url: str) -> Page:
         host = host_of(url)
+        # Only passed when there is one, so a plain fetch(url, timeout) still works.
+        extra = {"validators": validators[id_]} if id_ in validators else {}
         for attempt in count():
             try:
-                return limiter.run(host, lambda: fetch(url, timeout=timeout))
+                return limiter.run(host, lambda: fetch(url, timeout=timeout, **extra))
             except urllib.error.HTTPError as exc:
                 wait = retry_wait(exc)
                 give_up = wait is None or attempt >= retries or max_retry_wait <= 0
@@ -344,7 +383,7 @@ def fetch_many(
         raise AssertionError("unreachable")  # count() never ends
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(task, url): (id_, url) for id_, url in interleave_hosts(items)}
+        futures = {pool.submit(task, id_, url): (id_, url) for id_, url in interleave_hosts(items)}
         for future in as_completed(futures):
             id_, url = futures[future]
             try:

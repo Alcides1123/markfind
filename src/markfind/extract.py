@@ -105,6 +105,10 @@ class Page:
     # A readable copy of the same content as safe HTML (a fragment, no
     # <html> or <body>); empty if none was made.
     html: str = field(default="", compare=False, repr=False)
+    # Validators from the HTTP response, carried through so the next fetch can
+    # ask the server whether anything changed. Empty unless fetch.py set them.
+    etag: str = field(default="", compare=False, repr=False)
+    last_modified: str = field(default="", compare=False, repr=False)
 
 
 def normalize(text: str) -> str:

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- New `markfind fetch --if-changed` keeps the index fresh without downloading
+  pages that haven't changed. markfind now remembers each page's `ETag` and
+  `Last-Modified`, sends them back on a re-fetch, and skips the pages the
+  server reports as unchanged; their text and saved copy are kept as they are.
+  On five real pages a refresh dropped from 796 KB to nothing (#70).
+  - Leave the option off after upgrading markfind, when you want every page
+    read again with the new extractor.
+  - Database schema 7 adds the two columns; older databases migrate on first
+    use.
+
 ## 0.3.0 (2026-11-06)
 
 - markfind is on PyPI: install it with `pipx install markfind` or

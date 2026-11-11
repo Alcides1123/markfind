@@ -34,7 +34,10 @@ CREATE TABLE IF NOT EXISTS bookmarks (
     tags TEXT NOT NULL DEFAULT '',
     browser_tags TEXT NOT NULL DEFAULT '',  -- as of the last import
     my_tags TEXT NOT NULL DEFAULT '',  -- added with `markfind tag`
-    note TEXT NOT NULL DEFAULT ''
+    note TEXT NOT NULL DEFAULT '',
+    -- From the last successful fetch, for conditional re-fetches.
+    etag TEXT NOT NULL DEFAULT '',
+    last_modified TEXT NOT NULL DEFAULT ''
 );
 
 -- rowid matches bookmarks.id
@@ -145,6 +148,13 @@ def _add_archive(db: sqlite3.Connection) -> None:
     )
 
 
+def _add_validators(db: sqlite3.Connection) -> None:
+    columns = {row[1] for row in db.execute("PRAGMA table_info(bookmarks)")}
+    for column in ("etag", "last_modified"):
+        if column not in columns:
+            db.execute(f"ALTER TABLE bookmarks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+
+
 MIGRATIONS = [
     _add_error_kind,
     _add_source,
@@ -152,6 +162,7 @@ MIGRATIONS = [
     _add_tags,
     _add_my_tags_and_notes,
     _add_archive,
+    _add_validators,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -584,11 +595,20 @@ class Store:
         sql = f"SELECT id, url FROM bookmarks WHERE {' OR '.join(conditions)} ORDER BY id"
         return self.db.execute(sql, params).fetchall()
 
-    def set_page(self, id_: int, text: str, page_title: str = "", html: str = "") -> None:
+    def set_page(
+        self,
+        id_: int,
+        text: str,
+        page_title: str = "",
+        html: str = "",
+        etag: str = "",
+        last_modified: str = "",
+    ) -> None:
         """Record a successful fetch: the page text, and its readable copy if ``html``.
 
         ``html`` must be safe to show, like ``extract.Page.html``. Without it,
-        an earlier copy is kept.
+        an earlier copy is kept. ``etag`` and ``last_modified`` are the
+        response's validators, used by the next conditional re-fetch.
         """
         now = _now()
         with self.db:
@@ -596,10 +616,11 @@ class Store:
                 """
                 UPDATE bookmarks
                 SET fetched_at = ?, fetch_error = NULL, error_kind = NULL,
+                    etag = ?, last_modified = ?,
                     title = CASE WHEN title = '' THEN ? ELSE title END
                 WHERE id = ?
                 """,
-                (now, page_title, id_),
+                (now, etag, last_modified, page_title, id_),
             )
             self._reindex(id_, text)
             if html:
@@ -632,6 +653,36 @@ class Store:
         if text:
             return SavedCopy(url, title, None, text_as_html(text), text, text_only=True)
         return None
+
+    def validators(self, ids: Iterable[int]) -> dict[int, tuple[str, str]]:
+        """(ETag, Last-Modified) per bookmark id, for the ones worth revalidating.
+
+        Only bookmarks whose last fetch succeeded and left a validator are
+        included: there is nothing to revalidate against otherwise.
+        """
+        wanted = set(ids)
+        if not wanted:
+            return {}
+        rows = self.db.execute(
+            """
+            SELECT id, etag, last_modified FROM bookmarks
+            WHERE fetched_at IS NOT NULL AND fetch_error IS NULL
+              AND (etag <> '' OR last_modified <> '')
+            """
+        )
+        return {id_: (etag, modified) for id_, etag, modified in rows if id_ in wanted}
+
+    def set_unchanged(self, id_: int) -> None:
+        """Record that the server said the page is unchanged: only the time moves.
+
+        The indexed text and the saved copy are left exactly as they are.
+        """
+        with self.db:
+            self.db.execute(
+                "UPDATE bookmarks SET fetched_at = ?, fetch_error = NULL, error_kind = NULL"
+                " WHERE id = ?",
+                (_now(), id_),
+            )
 
     def set_error(self, id_: int, message: str, kind: str = "other") -> None:
         with self.db:

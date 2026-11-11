@@ -163,7 +163,7 @@ def test_migration_to_version_6(tmp_path):
     db.executescript("DROP TABLE archive; PRAGMA user_version = 5;")
     db.close()
     with Store(path) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 6
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert store.db.execute("SELECT count(*) FROM archive").fetchone()[0] == 0
 
 
