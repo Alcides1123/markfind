@@ -37,6 +37,7 @@ The tests never touch the network:
 | `test_extract.py` | Text extraction and boilerplate removal |
 | `test_fetch.py` | Rate limiting, host interleaving, duration parsing |
 | `test_fetch_page.py` | Downloading against a local server: content types, sniffing, binary data |
+| `test_conditional_fetch.py` | `fetch --if-changed`: validators, 304 handling, and what a skipped page keeps |
 | `test_duplicates.py` | URL normalization (what must and must not match), text grouping, `markfind duplicates` |
 | `test_errors.py` | Failure classification and schema migrations |
 | `test_store.py` | Storage, indexing and search |

@@ -27,6 +27,8 @@ The sections below list everything by theme, done and planned.
       personal index; documented in How it works (#50)
 - [x] Index PDF bookmarks (optional dependency) (#47)
 - [x] Re-fetch pages older than N days: `markfind fetch --older-than 90d`
+- [x] Skip unchanged pages on a re-fetch, using `ETag` / `Last-Modified`
+      (`markfind fetch --if-changed`) (#70)
 - [x] Retry failed fetches: `markfind fetch --failed`
 - [x] Per-host rate limiting during fetch
 - [x] Honor `Retry-After` on HTTP 429 / 503 responses (#26)

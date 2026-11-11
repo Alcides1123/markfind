@@ -121,6 +121,22 @@ keep it polite to websites:
 Results are written to the database from the main thread as they arrive, so a
 fetch can be interrupted at any point without losing finished work.
 
+**Conditional re-fetching.** A successful fetch stores whatever the response
+offered as a validator: its `ETag`, its `Last-Modified`, or both. With
+`markfind fetch --if-changed`, those go back out as `If-None-Match` and
+`If-Modified-Since`, and a server that recognises them answers `304 Not
+Modified` with no body. `fetch_page()` raises `NotModified`, and only the
+fetch time is updated: the indexed text and the saved copy are left alone.
+
+This is what HTTP caching is for, and it costs the sites nothing to answer. On
+five real pages (sqlite.org, Wikipedia, the Python docs, git-scm.com and
+example.com) a refresh went from 796 KB of page data to none at all. Both
+validators are worth keeping: Wikipedia and example.com sent only
+`Last-Modified`, while the Python docs sent both.
+
+Bookmarks whose last fetch failed never take part, since there is nothing good
+to revalidate against, and neither do pages whose server offered no validator.
+
 Servers don't always say what they're sending. `sniff_content_type()`
 checks the start of the body when the `Content-Type` header is missing (Python
 would otherwise report `text/plain`) or says `text/plain`: a body that opens
@@ -427,8 +443,9 @@ The database stores its schema version in `PRAGMA user_version`. When
 | 2 | Adds `bookmarks.source`. Existing bookmarks get no source, so they're never pruned until a later import records one. |
 | 3 | No schema change. Pages fetched with no text, which used to count as indexed, are marked as `empty` failures. |
 | 4 | Adds `bookmarks.tags` and a `tags` column to `bookmarks_fts`. FTS5 tables can't gain columns, so the index is copied into a new table, page text included. |
-| 6 | Adds the `archive` table for [saved copies](#saved-copies). |
 | 5 | Adds `bookmarks.browser_tags`, `my_tags` and `note`, and a `note` column to `bookmarks_fts` (copied the same way). Existing tags all came from the browser, so they're copied to `browser_tags`. |
+| 6 | Adds the `archive` table for [saved copies](#saved-copies). |
+| 7 | Adds `bookmarks.etag` and `last_modified` for [conditional re-fetching](#fetching). |
 
 See [Development](development.md#changing-the-database-schema) for how to add
 a migration.

@@ -147,7 +147,7 @@ and [`examples/refresh.ps1`](../examples/refresh.ps1); `markfind sync --prune
 ## fetch
 
 ```text
-markfind fetch [--older-than AGE] [--failed] [--all]
+markfind fetch [--older-than AGE] [--failed] [--all] [--if-changed]
                [--workers N] [--timeout S] [--delay S] [--max-retry-wait S] [-q]
 ```
 
@@ -160,6 +160,7 @@ that have **never** been fetched.
 | `--older-than AGE` | Also re-fetch pages last fetched more than `AGE` ago. `AGE` is a number plus `h`, `d` or `w`: `12h`, `90d`, `2w`. |
 | `--failed` | Also retry bookmarks whose last fetch failed. |
 | `--all` | Re-fetch everything. |
+| `--if-changed` | Ask each server whether the page changed, and skip the ones it says haven't. |
 | `--workers N` | Parallel downloads (default 8). |
 | `--timeout S` | Seconds to wait for each page (default 10). |
 | `--delay S` | Minimum seconds between two requests to the same host (default 1; `0` disables). |
@@ -168,6 +169,24 @@ that have **never** been fetched.
 
 The options combine. For example, `--older-than 30d --failed` fetches new,
 stale and failed bookmarks.
+
+**Keeping the index fresh.** A plain re-fetch downloads every page in full,
+even the ones that haven't changed. With `--if-changed`, markfind tells the
+server what it already has, and most servers answer "not modified" without
+sending the page:
+
+```text
+$ markfind fetch --all --if-changed
+fetched 3, unchanged 418, failed 2
+```
+
+Unchanged pages keep their indexed text and their saved copy; only the fetch
+time moves. Use it for routine refreshes. Leave it off after upgrading
+markfind, when you want every page read again with the new extractor.
+
+A page only takes part if the server offered an `ETag` or `Last-Modified` when
+it was last fetched; the rest are downloaded as usual. See
+[conditional re-fetching](how-it-works.md#fetching).
 
 What gets indexed:
 

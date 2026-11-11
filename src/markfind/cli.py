@@ -23,6 +23,7 @@ from .fetch import (
     ERROR_KINDS,
     MAX_RETRY_WAIT,
     HostLimiter,
+    NotModified,
     classify_error,
     fetch_many,
     fetch_page,
@@ -201,8 +202,10 @@ def _fetch(store: Store, pending: list[tuple[int, str]], args: argparse.Namespac
         print("nothing to fetch")
         return
 
-    ok = failed = 0
+    ok = unchanged = failed = 0
     kinds: set[str] = set()
+    # Only re-fetches can be conditional; `sync` has no such option.
+    revalidate = getattr(args, "if_changed", False)
     results = fetch_many(
         pending,
         fetch=fetch_page,
@@ -210,12 +213,24 @@ def _fetch(store: Store, pending: list[tuple[int, str]], args: argparse.Namespac
         timeout=args.timeout,
         limiter=HostLimiter(delay=args.delay),
         max_retry_wait=args.max_retry_wait,
+        validators=store.validators([id_ for id_, _ in pending]) if revalidate else None,
     )
     for done, (id_, url, result) in enumerate(results, 1):
         if isinstance(result, Page):
-            store.set_page(id_, result.text, result.title, html=result.html)
+            store.set_page(
+                id_,
+                result.text,
+                result.title,
+                html=result.html,
+                etag=result.etag,
+                last_modified=result.last_modified,
+            )
             ok += 1
             status = "ok"
+        elif isinstance(result, NotModified):
+            store.set_unchanged(id_)
+            unchanged += 1
+            status = "unchanged"
         else:
             kind, message = classify_error(result)
             store.set_error(id_, message, kind)
@@ -224,7 +239,8 @@ def _fetch(store: Store, pending: list[tuple[int, str]], args: argparse.Namespac
             status = f"failed, {kind}: {message}"
         if not args.quiet:
             print(f"[{done}/{len(pending)}] {status}: {url}")
-    print(f"fetched {ok}, failed {failed}")
+    counts = f"fetched {ok}" + (f", unchanged {unchanged}" if unchanged else "")
+    print(f"{counts}, failed {failed}")
     if failed:
         print("run 'markfind broken --all' to see what failed")
     if "ssl" in kinds:
@@ -713,6 +729,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="also re-fetch pages fetched more than AGE ago, e.g. 90d, 2w, 12h",
     )
     p.add_argument("--failed", action="store_true", help="also retry pages whose last fetch failed")
+    p.add_argument(
+        "--if-changed",
+        action="store_true",
+        help="ask the server first and skip pages it reports as unchanged",
+    )
     _add_fetch_options(p)
     p.set_defaults(func=cmd_fetch)
 
