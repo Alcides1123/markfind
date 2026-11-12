@@ -324,7 +324,14 @@ def parse_safari_plist(data: bytes) -> list[Bookmark]:
     """Parse Safari's ``Bookmarks.plist`` (binary or XML property list)."""
     try:
         root = plistlib.loads(data)
-    except (plistlib.InvalidFileException, ExpatError, ValueError, OverflowError) as exc:
+    # LookupError: the XML declaration names an encoding Python doesn't have.
+    except (
+        plistlib.InvalidFileException,
+        ExpatError,
+        ValueError,
+        OverflowError,
+        LookupError,
+    ) as exc:
         raise ValueError(f"not a readable Safari bookmarks file: {exc}") from exc
     if not isinstance(root, dict):
         raise ValueError("not a readable Safari bookmarks file: unexpected contents")
