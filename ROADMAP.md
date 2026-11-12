@@ -56,6 +56,7 @@ The sections below list everything by theme, done and planned.
 
 ## Discovery
 
+- [x] Open a search result in the browser: `markfind open WORDS...` (#84)
 - [x] "More like this": `markfind similar URL` (#15)
 - [x] Web UI: a "similar" link on each search result (#28)
 - [x] Group bookmarks into topics automatically, using the same keywords (#49)

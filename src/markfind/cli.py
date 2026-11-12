@@ -309,6 +309,73 @@ def _not_in_markfind(url: str) -> int:
     return 2
 
 
+def cmd_open(store: Store, args: argparse.Namespace) -> int:
+    text = " ".join(args.query)
+    if is_web_url(text):
+        record = store.bookmark(text)
+        if record is None:
+            print(
+                f"error: {text} is not in markfind;"
+                " 'markfind add' puts it in, 'markfind search' finds what is already here",
+                file=sys.stderr,
+            )
+            return 2
+        return _open_pages([(record.title, record.url)], args)
+
+    query = text if args.raw else to_fts_query(text)
+    limit = max(1, args.limit)
+    try:
+        # One result past the limit, so "that is all of them" can be told
+        # apart from "there are more than I looked at".
+        results = store.search(
+            query, limit=limit + 1, mark=("", ""), folder=args.folder, tag=args.tag
+        )
+    except QueryError as exc:
+        print(f"error: invalid query: {exc}", file=sys.stderr)
+        return 2
+    if not results:
+        print("no matches")
+        return 1
+
+    more = len(results) > limit
+    results = results[:limit]
+    chosen = results if args.all else results[:1]
+    code = _open_pages([(r.title, r.url) for r in chosen], args)
+    _other_matches(len(results) - len(chosen), more, text)
+    return code
+
+
+def _other_matches(others: int, more: bool, query: str) -> None:
+    """Say what else matched, so the best match isn't mistaken for the only one."""
+    if more:
+        print(f"more matches; 'markfind search {query}' lists them")
+    elif others:
+        plural = "match" if others == 1 else "matches"
+        print(f"{others} other {plural}; 'markfind search {query}' lists them")
+
+
+def _open_pages(pages: list[tuple[str, str]], args: argparse.Namespace) -> int:
+    failed = False
+    for title, url in pages:
+        if not is_web_url(url):
+            # markfind's importers only keep web addresses, but a database
+            # written by something else could hold anything, and handing a
+            # browser a 'javascript:' or 'file:' address is not harmless.
+            print(f"error: refusing to open {url}: not a web address", file=sys.stderr)
+            failed = True
+        elif args.print_only:
+            print(url)
+        elif webbrowser.open(url):
+            print(f"opening: {title or url}")
+            if title:
+                print(f"  {url}")
+        else:
+            # Over ssh or in a bare container there is no browser to start.
+            print(f"no browser to open it with: {url}", file=sys.stderr)
+            failed = True
+    return 1 if failed else 0
+
+
 def cmd_similar(store: Store, args: argparse.Namespace) -> int:
     try:
         found = store.similar(args.url, limit=args.limit, mark=_mark())
@@ -802,6 +869,34 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
     p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
     p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser(
+        "open",
+        help="open the best search result in your browser",
+        description=(
+            "Search your bookmarks and open the best match in your browser."
+            " An address markfind already has is opened as it stands, without searching."
+            " To open some other match, run 'markfind search' and pass it that address."
+        ),
+    )
+    p.add_argument("query", nargs="+", metavar="QUERY")
+    p.add_argument("-n", "--limit", type=int, default=10, help="matches to consider (default: 10)")
+    p.add_argument("--all", action="store_true", help="open every match, not just the best one")
+    p.add_argument(
+        "-p",
+        "--print",
+        dest="print_only",
+        action="store_true",
+        help="print the addresses instead of opening them",
+    )
+    p.add_argument(
+        "--raw",
+        action="store_true",
+        help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
+    )
+    p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
+    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+    p.set_defaults(func=cmd_open)
 
     p = sub.add_parser(
         "similar",
