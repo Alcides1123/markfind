@@ -83,6 +83,8 @@ def test_load_file_detects_plists(tmp_path, fmt):
     [
         b"bplist00 this is not really a binary plist",
         b'<?xml version="1.0"?><plist version="1.0"><dict><key>x</key>',
+        # An encoding Python doesn't have: plistlib raises LookupError, not ValueError.
+        b'<?xml version="1.0" encoding="zTF-8"?><plist version="1.0"><dict/></plist>',
         plistlib.dumps(["a list, not a dict"]),
     ],
 )
@@ -99,6 +101,13 @@ def test_binary_plist_written_by_apples_own_tool(tmp_path):
     subprocess.run(["plutil", "-convert", "binary1", str(path)], check=True)
     assert path.read_bytes().startswith(b"bplist00")
     assert load_file(path) == EXPECTED
+
+
+def test_a_corrupt_plist_file_is_reported_not_raised(tmp_path, capsys):
+    path = tmp_path / "Bookmarks.plist"
+    path.write_bytes(b'<?xml version="1.0" encoding="zTF-8"?><plist><dict/></plist>')
+    assert cli.main(["--db", str(tmp_path / "db.sqlite"), "import", str(path)]) == 1
+    assert "could not read" in capsys.readouterr().err
 
 
 def test_other_formats_still_detected(tmp_path):

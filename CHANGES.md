@@ -6,6 +6,10 @@
   plain ASCII number. `str.isdigit()` also accepts `²` and digits in other
   scripts, which no browser reads as a span (#80).
 
+- Fixed: `markfind import` crashed with a traceback on a property list whose
+  XML declaration named an unknown encoding. It is now reported like any other
+  unreadable file. Found by fuzzing the parsers (#78).
+
 - Fixed: a bookmark pointing at a page that only redirects, through
   `<meta http-equiv="refresh">`, was indexed as the stub. One real example
   indexed 28 characters of "Click here to be redirected." instead of the
