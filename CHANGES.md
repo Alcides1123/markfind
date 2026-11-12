@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Saved copies: a table cell's `colspan` or `rowspan` is kept only when it is a
+  plain ASCII number. `str.isdigit()` also accepts `²` and digits in other
+  scripts, which no browser reads as a span (#80).
+
 - Fixed: a bookmark pointing at a page that only redirects, through
   `<meta http-equiv="refresh">`, was indexed as the stub. One real example
   indexed 28 characters of "Click here to be redirected." instead of the

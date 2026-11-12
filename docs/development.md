@@ -48,6 +48,7 @@ The tests never touch the network:
 | `test_topics_eval.py` | `scripts/topics_eval.py`: the scoring, and that the URL lists stay valid |
 | `test_topics.py` | `markfind topics`: vectors, clustering, merging split topics, labels, the command |
 | `test_notes.py` | Your own tags and notes, kept apart from imports |
+| `test_archive_safety.py` | The saved-copy allowlist as an invariant: hostile markup in, only allowed tags and attributes out |
 | `test_saved_copies.py` | Saved copies: sanitizing, storage, `markfind archive`, the sandboxed `/archive` page |
 | `test_cli.py` | The `markfind` command end to end |
 | `test_sync.py` | Browser detection with fake home folders, pruning, `sync` and `import --prune` |
