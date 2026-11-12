@@ -30,6 +30,7 @@ The tests never touch the network:
 | Test file | Covers |
 |---|---|
 | `test_add.py` | `markfind add`: fetching on the spot, tags and notes, adding the same URL twice, bad addresses |
+| `test_open.py` | `markfind open`: which match is opened, what is said about the rest, and what is never handed to a browser |
 | `test_importers.py` | Netscape HTML and Chrome JSON parsing |
 | `test_export.py` | Every export format, escaping, the HTML round trip, `markfind export` |
 | `test_firefox.py` | Firefox `places.sqlite` import, including WAL changes |

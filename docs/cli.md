@@ -10,7 +10,7 @@ markfind [--db PATH] COMMAND [options]
 | `--version` | Print the version and exit. |
 
 Commands: [`add`](#add) · [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
-[`search`](#search) · [`similar`](#similar) · [`topics`](#topics) · [`list`](#list) ·
+[`search`](#search) · [`open`](#open) · [`similar`](#similar) · [`topics`](#topics) · [`list`](#list) ·
 [`tags`](#tags) ·
 [`tag`](#tag) · [`note`](#note) ·
 [`duplicates`](#duplicates) · [`broken`](#broken) · [`export`](#export) ·
@@ -345,6 +345,50 @@ Exit codes:
 - 0: results found
 - 1: no matches
 - 2: invalid `--raw` query
+
+---
+
+## open
+
+```text
+markfind open [-n N] [--all] [--print] [--raw] [--folder PATH] [--tag TAG] QUERY [QUERY ...]
+markfind open URL
+```
+
+Searches exactly as [`search`](#search) does, then opens the best match in
+your browser, so finding a page and going to it is one command instead of a
+search and a copy-paste.
+
+```text
+$ markfind open sqlite fts5
+opening: SQLite FTS5 Extension
+  https://sqlite.org/fts5.html
+3 other matches; 'markfind search sqlite fts5' lists them
+```
+
+Given a single address instead of words, it opens that bookmark as it stands
+and searches for nothing. That is how you open a match other than the first:
+run `markfind search`, then pass it the address you wanted.
+
+| Option | Meaning |
+|---|---|
+| `-n N`, `--limit N` | Matches to consider (default 10). |
+| `--all` | Open every match, not just the best one. |
+| `-p`, `--print` | Print the addresses instead of opening them, for scripts. |
+| `--raw` | Pass the query to SQLite FTS5 unchanged, as in [`search`](#search). |
+| `--folder PATH` | Only bookmarks in this folder and its subfolders. |
+| `--tag TAG` | Only bookmarks with this tag, ignoring case. |
+
+It prints what it opened, and whether anything else matched, so the best match
+isn't mistaken for the only one. Only `http` and `https` addresses are opened:
+a bookmark holding anything else is refused rather than handed to a browser.
+
+Exit codes:
+
+- 0: opened
+- 1: no matches, or no browser could be started — then the address is printed
+  so an `ssh` session can still use it
+- 2: invalid `--raw` query, or an address markfind doesn't have
 
 ---
 

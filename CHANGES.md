@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New `markfind open WORDS...` searches and opens the best match in your
+  browser, so going from a search to the page is one command. Takes the same
+  query, `--folder`, `--tag` and `--raw` as `markfind search`, plus `--all`
+  and `--print`. Given an address it opens that bookmark directly, and only
+  `http` and `https` addresses are ever opened (#84).
+
 - New `markfind add URL...` puts a bookmark in by address and indexes its page
   at once, so a page worth keeping doesn't have to go through the browser
   first. Takes `--folder`, `--tag`, `--note` and `--no-fetch`. A URL markfind
