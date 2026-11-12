@@ -193,6 +193,10 @@ What gets indexed:
 - HTML pages (`text/html`, `application/xhtml+xml`) are reduced to their main
   text. See [text extraction](how-it-works.md#text-extraction).
 - `text/plain` and Markdown pages are indexed as they are.
+- A page that only redirects, with `<meta http-equiv="refresh">` and no real
+  content of its own, is followed to where it points, for up to three hops. A
+  refresh more than five seconds away is a page reloading itself, and is left
+  alone.
 - PDFs are indexed when the optional `pypdf` package is installed
   (`pipx inject markfind pypdf`, or `python -m pip install pypdf`):
   - their text and title are read from the first 300 pages;

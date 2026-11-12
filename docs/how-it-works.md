@@ -137,6 +137,14 @@ validators are worth keeping: Wikipedia and example.com sent only
 Bookmarks whose last fetch failed never take part, since there is nothing good
 to revalidate against, and neither do pages whose server offered no validator.
 
+Some pages answer 200 and then send the reader somewhere else with
+`<meta http-equiv="refresh" content="0; url=...">`, usually as the `<noscript>`
+fallback behind a script redirect. urllib does not treat that as a redirect, so
+`fetch_page()` looks for one itself and follows it for up to three hops, as a
+browser would. Only an immediate refresh counts: beyond `MAX_REFRESH_DELAY` (5
+seconds) it is a page reloading itself. The target's `ETag` and `Last-Modified`
+are dropped, since they describe a different URL from the bookmark's.
+
 Servers don't always say what they're sending. `sniff_content_type()`
 checks the start of the body when the `Content-Type` header is missing (Python
 would otherwise report `text/plain`) or says `text/plain`: a body that opens

@@ -17,9 +17,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from html import escape
+from html import escape, unescape
 from itertools import chain, count, zip_longest
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from . import __version__
 from .extract import Page, extract_text, normalize
@@ -32,6 +32,18 @@ _PDF_TYPES = ("application/pdf", "application/x-pdf")
 # Indexed as they are. Some documentation sites send Markdown to anything that isn't
 # a browser, and it's already clean text.
 _TEXT_TYPES = ("text/plain", "text/markdown", "text/x-markdown")
+# <meta http-equiv="refresh" content="0; url=...">: a page that only exists to
+# send the reader somewhere else. Browsers follow it, so markfind does too.
+_META_REFRESH = re.compile(
+    r"""<meta\s[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*>""", re.IGNORECASE
+)
+_REFRESH_TARGET = re.compile(
+    r"""content\s*=\s*["']?\s*(\d+)\s*;\s*url\s*=\s*['"]?([^'">\s]+)""", re.IGNORECASE
+)
+# A longer wait is a page refreshing itself, not one that moved.
+MAX_REFRESH_DELAY = 5
+REFRESH_HOPS = 3
+
 # How an HTML document starts, after any BOM and whitespace.
 _HTML_START = re.compile(rb"<(?:!doctype\s+html|html|head|body)(?:[\s>/]|$)", re.IGNORECASE)
 
@@ -204,17 +216,36 @@ def _ssl_context() -> ssl.SSLContext | None:
     return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 
+def meta_refresh(html: str, base_url: str) -> str | None:
+    """Where a page's meta refresh sends the reader, or None.
+
+    Only an immediate one counts: a longer delay is a page set to reload
+    itself, which is not a move.
+    """
+    for tag in _META_REFRESH.findall(html):
+        found = _REFRESH_TARGET.search(tag)
+        if found and int(found.group(1)) <= MAX_REFRESH_DELAY:
+            target = urljoin(base_url, unescape(found.group(2)))
+            if target != base_url and urlsplit(target).scheme in ("http", "https"):
+                return target
+    return None
+
+
 def fetch_page(
     url: str,
     timeout: float = 10.0,
     max_bytes: int = MAX_BYTES,
     validators: tuple[str, str] | None = None,
+    hops: int = REFRESH_HOPS,
 ) -> Page:
     """Download a page and extract its text.
 
     ``validators`` is the (ETag, Last-Modified) pair from the last fetch. Given
     one, the request asks the server to answer only if the page changed, and
     NotModified is raised when it says it has not.
+
+    A page that only redirects, through ``<meta http-equiv="refresh">``, is
+    followed for up to ``hops`` steps.
     """
     headers = {
         "User-Agent": USER_AGENT,
@@ -275,6 +306,14 @@ def fetch_page(
     except LookupError:
         body = raw.decode("utf-8", errors="replace")
     body = body.removeprefix("\ufeff")  # a UTF-8 byte-order mark isn't text
+
+    if content_type == "text/html" and hops > 0:
+        moved = meta_refresh(body, final_url)
+        if moved:
+            # The validators belong to the page that redirected, not to this
+            # one, so they are dropped: there is nothing here to revalidate.
+            page = fetch_page(moved, timeout, max_bytes, hops=hops - 1)
+            return replace(page, etag="", last_modified="")
 
     if content_type == "text/plain":
         text = normalize(body)

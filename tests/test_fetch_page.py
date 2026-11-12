@@ -26,6 +26,36 @@ PAGES = {
     "/no-type-pdf": (None, b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj"),
     "/no-type-binary": (None, b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"),
     "/plain-html": ("text/plain", HTML),
+    # Pages whose only job is to send the reader somewhere else.
+    "/moved": ("text/html", b'<meta http-equiv="refresh" content="0; url=/html">Click here.'),
+    "/moved-noscript": (  # where the real ones put it, behind a script redirect
+        "text/html",
+        b"<!doctype html><title>Redirect</title><noscript>"
+        b'<meta http-equiv="refresh" content="0; url=/html"></noscript>'
+        b'<p><a href="/html">Click here</a> to be redirected.</p>',
+    ),
+    "/moved-quoted": (
+        "text/html",
+        b"<meta http-equiv=refresh content='0; url=&#47;html'>Click here.",
+    ),
+    "/moved-slowly": (  # a page reloading itself, not one that moved
+        "text/html",
+        b'<meta http-equiv="refresh" content="300; url=/html">'
+        b"<main><p>" + b"Live scores and updates. " * 20 + b"</p></main>",
+    ),
+    "/moved-to-itself": (
+        "text/html",
+        b'<meta http-equiv="refresh" content="0; url=/moved-to-itself">'
+        b"<main><p>" + b"This page refreshes itself forever. " * 12 + b"</p></main>",
+    ),
+    "/hop1": ("text/html", b'<meta http-equiv="refresh" content="0; url=/hop2">one'),
+    "/hop2": ("text/html", b'<meta http-equiv="refresh" content="0; url=/hop3">two'),
+    "/hop3": ("text/html", b'<meta http-equiv="refresh" content="0; url=/hop4">three'),
+    "/hop4": (
+        "text/html",
+        b'<meta http-equiv="refresh" content="0; url=/html">'
+        b"<main><p>" + b"Still hopping along. " * 20 + b"</p></main>",
+    ),
     "/markdown": ("text/markdown; charset=utf-8", b"# Volumes\n\nPersistent data stores."),
     "/x-markdown": ("text/x-markdown", b"# Volumes\n\nPersistent data stores."),
     "/plain-text": ("text/plain; charset=utf-8", b"<b> is how you write bold in HTML."),
@@ -76,6 +106,32 @@ def test_html_is_extracted_whatever_the_label(base_url, path):
     page = fetch_page(base_url + path)
     assert page.title == "Redirector"
     assert page.text == "Welcome back"
+
+
+@pytest.mark.parametrize("path", ["/moved", "/moved-noscript", "/moved-quoted"])
+def test_a_redirecting_page_is_followed(base_url, path):
+    # Without this markfind would index "Click here to be redirected."
+    page = fetch_page(base_url + path)
+    assert page.title == "Redirector" and page.text == "Welcome back"
+
+
+def test_a_page_that_reloads_itself_is_not_a_redirect(base_url):
+    assert "Live scores" in fetch_page(base_url + "/moved-slowly").text
+
+
+def test_a_refresh_to_itself_is_not_followed(base_url):
+    assert "refreshes itself" in fetch_page(base_url + "/moved-to-itself").text
+
+
+def test_redirects_stop_after_a_few_hops(base_url):
+    assert "Still hopping" in fetch_page(base_url + "/hop1").text
+    assert fetch_page(base_url + "/hop1", hops=0).text == "one"
+
+
+def test_a_followed_redirect_keeps_no_validators(base_url):
+    # They belong to the page that redirected, so they cannot revalidate this one.
+    page = fetch_page(base_url + "/moved")
+    assert page.etag == "" and page.last_modified == ""
 
 
 def test_html_after_bom_and_whitespace(base_url):
