@@ -29,7 +29,7 @@ from .fetch import (
     fetch_page,
 )
 from .formats import FORMATS, to_markdown
-from .importers import clean_tags, load_file
+from .importers import clean_tags, is_web_url, load_file
 from .server import DEFAULT_HOST, DEFAULT_PORT, serve
 from .store import Failure, QueryError, Store, to_fts_query
 from .topics import MIN_SIZE
@@ -136,6 +136,42 @@ def _permission_hint(exc: Exception, path: Path) -> None:
     """Explain macOS's Full Disk Access when Safari's bookmarks can't be read."""
     if isinstance(exc, PermissionError) and "/Library/Safari/" in Path(path).as_posix():
         print(FULL_DISK_ACCESS_HINT, file=sys.stderr)
+
+
+def cmd_add(store: Store, args: argparse.Namespace) -> int:
+    urls = []
+    for given in args.urls:
+        url = given.strip()
+        if not is_web_url(url):
+            print(f"error: not a web address: {given}", file=sys.stderr)
+            return 2
+        urls.append(url)
+
+    new = {url for url in urls if store.add_bookmark(url, folder=args.folder)}
+    for url in urls:
+        if args.tag:
+            store.add_tags(url, args.tag)
+        if args.note is not None:
+            store.set_note(url, args.note)
+
+    if not args.no_fetch:
+        wanted = set(urls)
+        to_fetch = [(id_, url) for id_, url in store.pending() if url in wanted]
+        if to_fetch:
+            _fetch(store, to_fetch, args)
+
+    failed = 0
+    for url in urls:
+        record = store.bookmark(url)
+        state = "added" if url in new else "already in markfind"
+        print(f"{state}: {record.title}" if record and record.title else f"{state}: {url}")
+        if record and record.title:
+            print(f"  {url}")
+        if record and record.error_kind:
+            failed += 1
+    # The page may be worth keeping even when it can't be read, so the
+    # bookmark stays; the exit code says something went wrong.
+    return 1 if failed else 0
 
 
 def cmd_import(store: Store, args: argparse.Namespace) -> int:
@@ -684,6 +720,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="database file (default: $MARKFIND_DB or ~/.markfind.sqlite)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser(
+        "add",
+        help="add a bookmark by its address and index the page",
+        description=(
+            "Add one or more web addresses and fetch their pages straight away."
+            " A URL markfind already has keeps everything it already holds."
+        ),
+    )
+    p.add_argument("urls", nargs="+", metavar="URL")
+    p.add_argument("--folder", default="", help="file the new bookmarks under this folder")
+    p.add_argument(
+        "--tag", action="append", default=[], metavar="TAG", help="add this tag; repeat for several"
+    )
+    p.add_argument("--note", help="your own note about the bookmark")
+    p.add_argument("--no-fetch", action="store_true", help="add without downloading the pages")
+    _add_fetch_options(p)
+    p.set_defaults(func=cmd_add)
 
     p = sub.add_parser(
         "import",

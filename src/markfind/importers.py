@@ -61,7 +61,8 @@ class Bookmark:
     tags: tuple[str, ...] | None = None
 
 
-def _is_web_url(url: str) -> bool:
+def is_web_url(url: str) -> bool:
+    """Whether markfind can fetch this: an http(s) address, not a bookmarklet or a file."""
     return urlsplit(url).scheme in ("http", "https")
 
 
@@ -143,7 +144,7 @@ class _NetscapeParser(HTMLParser):
             # Firefox writes TAGS="a,b" on tagged bookmarks only, so a missing
             # attribute can't tell "no tags" from "this browser has no tags".
             tags = self._link.get("tags")
-            if _is_web_url(url):
+            if is_web_url(url):
                 self.bookmarks.append(
                     Bookmark(
                         url=url,
@@ -176,7 +177,7 @@ def parse_chrome_json(text: str) -> list[Bookmark]:
     def walk(node: dict, path: list[str]) -> None:
         if node.get("type") == "url":
             url = (node.get("url") or "").strip()
-            if _is_web_url(url):
+            if is_web_url(url):
                 bookmarks.append(
                     Bookmark(
                         url=url,
@@ -274,7 +275,7 @@ def _read_firefox_db(db: sqlite3.Connection) -> list[Bookmark]:
     )
     for parent, title, url, date_added in rows:
         url = (url or "").strip()
-        if not _is_web_url(url):
+        if not is_web_url(url):
             continue
         folder = folder_path(parent)
         if folder is None:
@@ -342,7 +343,7 @@ def parse_safari_plist(data: bytes) -> list[Bookmark]:
         kind = node.get("WebBookmarkType")
         if kind == "WebBookmarkTypeLeaf":
             url = str(node.get("URLString") or "").strip()
-            if not _is_web_url(url):
+            if not is_web_url(url):
                 return
             uri = node.get("URIDictionary")
             title = uri.get("title") if isinstance(uri, dict) else None

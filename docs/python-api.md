@@ -86,6 +86,7 @@ thread.
 
 | Method | Description |
 |---|---|
+| `add_bookmark(url, folder="") -> bool` | Add one bookmark by hand, `True` if it was new. A URL already present keeps its title, folder, tags and source. |
 | `add_bookmarks(bookmarks, source=None) -> (added, updated)` | Insert new bookmarks. For URLs already present, update the title and folder and keep the page text. `source` (any string, usually the file path) records where they came from; `None` keeps the recorded source. |
 | `delete(urls) -> int` | Delete the bookmarks with these URLs and their indexed text. Unknown URLs are ignored. Returns how many were deleted. |
 | `prune(source, keep) -> list[(url, title)]` | Delete bookmarks whose source is `source` and whose URL isn't in `keep`. Returns what was removed. Import every source before pruning any. |
@@ -103,6 +104,7 @@ thread.
 | `remove_tags(url, tags) -> tuple` | Remove tags added with `add_tags`. Returns those removed; browser tags are left alone. |
 | `note(url) -> str` / `set_note(url, text)` | Read or replace a bookmark's note; an empty text removes it. The note is indexed for search. |
 | `folders() -> list[(path, count)]` | Every folder, parents included, in tree order. A count includes subfolders. |
+| `bookmark(url) -> Record | None` | One bookmark with its fetch status, or `None`. |
 | `records(folder=None, tag=None) -> list[Record]` | Like `list_bookmarks`, with dates and fetch status, for exporting. |
 | `stats() -> Stats` | Counts: `total`, `fetched`, `failed`, `failed_by_kind`, `saved_copies`, `saved_bytes` (compressed). |
 | `pages() -> list[(url, title, folder, text)]` | Every bookmark with its indexed page text (`''` if not fetched). |

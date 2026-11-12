@@ -9,12 +9,53 @@ markfind [--db PATH] COMMAND [options]
 | `--db PATH` | Database file. Default: `$MARKFIND_DB`, or `~/.markfind.sqlite`. Created if missing. |
 | `--version` | Print the version and exit. |
 
-Commands: [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
+Commands: [`add`](#add) · [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
 [`search`](#search) · [`similar`](#similar) · [`topics`](#topics) · [`list`](#list) ·
 [`tags`](#tags) ·
 [`tag`](#tag) · [`note`](#note) ·
 [`duplicates`](#duplicates) · [`broken`](#broken) · [`export`](#export) ·
 [`archive`](#archive) · [`stats`](#stats) · [`serve`](#serve)
+
+---
+
+## add
+
+```text
+markfind add URL... [--folder PATH] [--tag TAG] [--note TEXT] [--no-fetch]
+                    [--workers N] [--timeout S] [--delay S] [--max-retry-wait S] [-q]
+```
+
+Add web addresses one at a time and fetch their pages straight away, without
+going through the browser. Good for a page you want to keep right now.
+
+```text
+$ markfind add https://sqlite.org/fts5.html --tag sqlite --note "ranking docs"
+[1/1] ok: https://sqlite.org/fts5.html
+fetched 1, failed 0
+added: SQLite FTS5 Extension
+  https://sqlite.org/fts5.html
+```
+
+| Option | Meaning |
+|---|---|
+| `--folder PATH` | File the new bookmarks under this folder. |
+| `--tag TAG` | Add this tag. Repeat for several. |
+| `--note TEXT` | Your own note about the bookmark. |
+| `--no-fetch` | Add the bookmarks without downloading anything; `markfind fetch` picks them up later. |
+
+The title comes from the page, so it is filled in by the fetch. The remaining
+options are the fetch options from [`fetch`](#fetch).
+
+**A URL markfind already has** keeps its title, folder and source: adding it
+again is not an import, so nothing it already holds is overwritten. Tags and a
+note given on the command line are still applied, and a page that was never
+fetched is fetched now. Bookmarks added this way have no source file, so
+[`--prune`](#import) never removes them.
+
+Exit code 2 if an address isn't `http` or `https` — nothing is added in that
+case — and 1 if a page couldn't be read. The bookmark is still kept when a
+fetch fails, since the address and title may be worth having; `markfind broken`
+lists those.
 
 ---
 

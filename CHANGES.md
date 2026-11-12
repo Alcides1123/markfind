@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New `markfind add URL...` puts a bookmark in by address and indexes its page
+  at once, so a page worth keeping doesn't have to go through the browser
+  first. Takes `--folder`, `--tag`, `--note` and `--no-fetch`. A URL markfind
+  already has keeps its title, folder and source, while tags and notes still
+  apply (#82).
+
 - Saved copies: a table cell's `colspan` or `rowspan` is kept only when it is a
   plain ASCII number. `str.isdigit()` also accepts `²` and digits in other
   scripts, which no browser reads as a span (#80).
