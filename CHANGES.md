@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Saved copies: a table cell's `colspan` or `rowspan` is kept only when it is a
+  plain ASCII number. `str.isdigit()` also accepts `²` and digits in other
+  scripts, which no browser reads as a span (#80).
+
 - Fixed: `markfind import` crashed with a traceback on a property list whose
   XML declaration named an unknown encoding. It is now reported like any other
   unreadable file. Found by fuzzing the parsers (#78).

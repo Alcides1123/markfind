@@ -143,10 +143,12 @@ def _reader_attrs(tag: str, attrs: dict[str, str | None], base_url: str) -> str:
             if urlsplit(href).scheme in ("http", "https"):
                 return f' href="{escape(href)}"'
     elif tag in ("td", "th"):
+        # str.isdigit() is also true of "2" written as a superscript or in
+        # another script, which no browser reads as a span.
         return "".join(
             f' {name}="{attrs[name]}"'
             for name in ("colspan", "rowspan")
-            if (attrs.get(name) or "").isdigit()
+            if (attrs.get(name) or "").isascii() and (attrs.get(name) or "").isdigit()
         )
     return ""
 
