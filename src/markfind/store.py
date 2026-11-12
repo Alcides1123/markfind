@@ -293,6 +293,10 @@ class Record:
         return "indexed" if self.fetched_at else "pending"
 
 
+def _to_record(row: tuple) -> Record:
+    return Record(*row[:6], tags=_split_tags(row[6]), note=row[7], saved=bool(row[8]))
+
+
 def _in_folder(folder: str | None, column: str = "folder") -> tuple[str, tuple[str, ...]]:
     """An SQL condition matching a folder and its subfolders; always true if no folder."""
     if not folder:
@@ -306,6 +310,15 @@ def _has_tag(tag: str | None, column: str = "tags") -> tuple[str, tuple[str, ...
     if not tag or not tag.strip():
         return "1", ()
     return f"instr(',' || lower({column}) || ',', ',' || lower(?) || ',') > 0", (tag.strip(),)
+
+
+def _record_columns() -> str:
+    """The columns a Record is built from, for any query over ``bookmarks AS b``."""
+    return (
+        "url, title, folder, added_at, fetched_at,"
+        " CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END,"
+        f" tags, note, {_has_copy('b')}"
+    )
 
 
 def _has_copy(bookmark: str) -> str:
@@ -390,6 +403,23 @@ class Store:
 
     def __exit__(self, *exc: object) -> None:
         self.close()
+
+    def add_bookmark(self, url: str, folder: str = "") -> bool:
+        """Add one bookmark by hand. True if it was new, False if it was already here.
+
+        Unlike ``add_bookmarks``, a URL markfind already has keeps its title,
+        folder, tags and source: adding it again is not an import, so nothing
+        it already holds is overwritten.
+        """
+        with self.db:
+            if self.db.execute("SELECT 1 FROM bookmarks WHERE url = ?", (url,)).fetchone():
+                return False
+            cursor = self.db.execute(
+                "INSERT INTO bookmarks (url, title, folder, added_at) VALUES (?, '', ?, ?)",
+                (url, folder, _now()),
+            )
+            self._reindex(cursor.lastrowid)
+        return True
 
     def add_bookmarks(
         self, bookmarks: Iterable[Bookmark], source: str | None = None
@@ -940,18 +970,20 @@ class Store:
         with_tag, tag_params = _has_tag(tag)
         rows = self.db.execute(
             f"""
-            SELECT url, title, folder, added_at, fetched_at,
-                   CASE WHEN fetch_error IS NOT NULL THEN coalesce(error_kind, 'other') END,
-                   tags, note, {_has_copy("b")}
+            SELECT {_record_columns()}
             FROM bookmarks AS b WHERE {in_folder} AND {with_tag}
             ORDER BY folder, title, url
             """,
             (*folder_params, *tag_params),
         )
-        return [
-            Record(*row[:6], tags=_split_tags(row[6]), note=row[7], saved=bool(row[8]))
-            for row in rows
-        ]
+        return [_to_record(row) for row in rows]
+
+    def bookmark(self, url: str) -> Record | None:
+        """One bookmark with its fetch status, or None if markfind doesn't have it."""
+        row = self.db.execute(
+            f"SELECT {_record_columns()} FROM bookmarks AS b WHERE url = ?", (url,)
+        ).fetchone()
+        return _to_record(row) if row else None
 
     def stats(self) -> Stats:
         row = self.db.execute(

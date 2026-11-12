@@ -37,6 +37,7 @@ The sections below list everything by theme, done and planned.
 
 ## More sources
 
+- [x] Add a bookmark by address from the command line: `markfind add URL` (#82)
 - [x] Import directly from Firefox's `places.sqlite` (read-only copy) (#7)
 - [x] Import Firefox tags as searchable keywords (#35)
 - [x] Auto-detect browser profile locations on Windows, macOS and Linux (#13)
