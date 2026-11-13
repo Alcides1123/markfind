@@ -9,7 +9,7 @@ markfind [--db PATH] COMMAND [options]
 | `--db PATH` | Database file. Default: `$MARKFIND_DB`, or `~/.markfind.sqlite`. Created if missing. |
 | `--version` | Print the version and exit. |
 
-Commands: [`add`](#add) · [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
+Commands: [`add`](#add) · [`remove`](#remove) · [`import`](#import) · [`sync`](#sync) · [`fetch`](#fetch) ·
 [`search`](#search) · [`open`](#open) · [`similar`](#similar) · [`topics`](#topics) · [`list`](#list) ·
 [`tags`](#tags) ·
 [`tag`](#tag) · [`note`](#note) ·
@@ -56,6 +56,57 @@ Exit code 2 if an address isn't `http` or `https` — nothing is added in that
 case — and 1 if a page couldn't be read. The bookmark is still kept when a
 fetch fails, since the address and title may be worth having; `markfind broken`
 lists those.
+
+---
+
+## remove
+
+```text
+markfind remove URL [URL ...]
+markfind remove [--folder PATH] [--tag TAG] [-y]
+```
+
+Takes bookmarks out of markfind. The counterpart to [`add`](#add), and the way
+to drop a single page or a folder you are done with — [`broken
+--delete`](#broken), [`duplicates --delete`](#duplicates) and
+[`--prune`](#import) only delete sets markfind picked out itself.
+
+```text
+$ markfind remove --folder "Old/Dev"
+  FTS5 in anger
+    https://blog.example/fts5
+  Rust in 2019
+    https://blog.example/rust-2019
+
+Removing a bookmark removes its saved copy too.
+Remove these 2 bookmarks from markfind? [y/N] y
+removed 2 bookmarks from markfind
+Your browser still has them: remove them there too, or the next
+'markfind sync' or import brings them back. 'markfind export --skip-dead'
+writes a clean bookmark file you can import into the browser.
+```
+
+| Option | Meaning |
+|---|---|
+| `--folder PATH` | Remove this folder and its subfolders, e.g. `--folder "Old/Dev"`. |
+| `--tag TAG` | Remove every bookmark with this tag, ignoring case. |
+| `-y`, `--yes` | With `--folder` or `--tag`, remove without asking. |
+
+Addresses you name are removed straight away: naming them is confirmation
+enough. A set markfind worked out from `--folder` or `--tag` is listed and
+confirmed first, unless `-y`. Both filters mean exactly what they mean in
+[`list`](#list) and can be combined, so what `markfind list` shows you is what
+`remove` takes.
+
+Your browser still has them, so the next [`sync`](#sync) or
+[`import`](#import) brings them back; the command says so. `markfind export
+--skip-dead` writes a bookmark file you can re-import into the browser instead.
+
+Exit code 2 if an address isn't in markfind — nothing is removed in that case,
+so a typo halfway down a long list doesn't leave the job half done — or if
+`--folder` / `--tag` is empty, which would otherwise match every bookmark.
+Exit 1 if nothing matched, or if there's no terminal to confirm on and no
+`--yes`.
 
 ---
 

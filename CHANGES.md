@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New `markfind remove URL...` takes bookmarks out again, by address or by
+  `--folder` / `--tag`. Until now only sets markfind picked itself could be
+  deleted (`broken --delete`, `duplicates --delete`, `--prune`). Addresses you
+  name go straight away; a set from a filter is listed and confirmed first,
+  unless `-y` (#86).
+
 - New `markfind open WORDS...` searches and opens the best match in your
   browser, so going from a search to the page is one command. Takes the same
   query, `--folder`, `--tag` and `--raw` as `markfind search`, plus `--all`
