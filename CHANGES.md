@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed: importing a `markfind export` gave every bookmark markfind hadn't
+  fetched yet its own address as a title. The export writes the address as a
+  link's text when there is no title, because a browser needs something
+  clickable, and the importer read it back as a title -- so a restore was not a
+  no-op, and a link that could no longer be fetched kept the invented title for
+  good. All four importers now treat a title identical to its address as no
+  title (#92).
+
 - Fixed: `--folder` and `--tag` only ignored case for `A`-`Z`, because SQLite's
   `lower()` and `LIKE` do. `--tag CAFÉ` found nothing though `--tag café` found
   the bookmark, and `--folder` was worse than either: its two halves disagreed,

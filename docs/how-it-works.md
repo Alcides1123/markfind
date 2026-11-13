@@ -27,6 +27,14 @@ Everything uses the Python standard library: `html.parser`, `urllib`,
 
 ## Importing
 
+**A title that is its own address is no title.** Every importer builds a title
+through `_title(text, url)`, which returns `""` when the two are the same. A
+browser needs something clickable, so `markfind export` writes the address as a
+link's text when a bookmark has no title; reading that back as a title would
+invent one, and markfind would then show a title for a page it never opened --
+permanently, for a link that can no longer be fetched. Restoring a markfind
+export leaves the database as it was.
+
 **Netscape HTML.** The format is old and loosely structured: folders are `<H3>`
 headings, each followed by a `<DL>` list, and closing `</DT>` and `</p>` tags
 are usually missing. The parser does no tree-building. It keeps a stack of open
