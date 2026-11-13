@@ -70,6 +70,18 @@ def _clean(text: str) -> str:
     return " ".join(text.split())
 
 
+def _title(text: str, url: str) -> str:
+    """A cleaned title, except that a link whose text is its own address has none.
+
+    ``markfind export`` writes the address as the link text when a bookmark has
+    no title, because a browser needs something clickable (see
+    ``markfind.formats.to_html``). Reading that back as a title would invent
+    one, and markfind would then show a title for a page it never opened.
+    """
+    title = _clean(text)
+    return "" if title == url else title
+
+
 def clean_tags(tags: Iterable[str]) -> tuple[str, ...]:
     """Tags without extra spaces, commas, blanks or repeats (ignoring case), in order."""
     seen: set[str] = set()
@@ -148,7 +160,7 @@ class _NetscapeParser(HTMLParser):
                 self.bookmarks.append(
                     Bookmark(
                         url=url,
-                        title=_clean("".join(self._link_text)),
+                        title=_title("".join(self._link_text), url),
                         folder="/".join(f for f in self._folders if f),
                         added_at=_unix_time(self._link.get("add_date")),
                         tags=clean_tags(tags.split(",")) if tags is not None else None,
@@ -181,7 +193,7 @@ def parse_chrome_json(text: str) -> list[Bookmark]:
                 bookmarks.append(
                     Bookmark(
                         url=url,
-                        title=_clean(node.get("name") or ""),
+                        title=_title(node.get("name") or "", url),
                         folder="/".join(path),
                         added_at=_chrome_time(node.get("date_added")),
                     )
@@ -283,7 +295,7 @@ def _read_firefox_db(db: sqlite3.Connection) -> list[Bookmark]:
         bookmarks.append(
             Bookmark(
                 url=url,
-                title=_clean(title),
+                title=_title(title, url),
                 folder=folder,
                 added_at=_firefox_time(date_added),
                 tags=tuple(sorted(clean_tags(tags.get(url, ())), key=str.lower)),
@@ -354,7 +366,7 @@ def parse_safari_plist(data: bytes) -> list[Bookmark]:
             bookmarks.append(
                 Bookmark(
                     url=url,
-                    title=_clean(str(title or "")),
+                    title=_title(str(title or ""), url),
                     folder="/".join(path),
                     added_at=added if isinstance(added, datetime) else None,
                 )
