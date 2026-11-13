@@ -49,6 +49,7 @@ The sections below list everything by theme, done and planned.
 
 - [x] Dead-link report: list bookmarks that now return 404 / DNS errors (#1)
 - [x] Remove dead bookmarks from the index (`markfind broken --delete`) (#33)
+- [x] Remove any bookmark by hand: `markfind remove URL` (#86)
 - [x] Duplicate detection (same URL after normalization, or same page text) (#17)
 - [x] Near-duplicate pages (mostly the same text, e.g. a page with a changed footer) (#37)
 - [x] Export search results to Markdown / HTML / JSON, and a cleaned-up

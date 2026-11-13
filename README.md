@@ -70,6 +70,7 @@ python -m pip install -e .
 | Command | What it does |
 |---|---|
 | `markfind add URL...` | Add bookmarks by address and index their pages at once, with optional `--tag`, `--note` and `--folder`. |
+| `markfind remove URL...` | Remove bookmarks from markfind (not from your browser), by address or by `--folder` / `--tag`. |
 | `markfind import FILE...` | Add bookmarks from an HTML export, Chrome / Edge `Bookmarks` file, Firefox `places.sqlite`, or Safari `Bookmarks.plist`. Re-importing updates titles and folders and keeps fetched text; `--prune` removes bookmarks no longer in the file. |
 | `markfind sync [--prune] [--browser NAME] [--list]` | Find every installed browser's bookmarks (all profiles), import them and fetch new pages. `--prune` removes bookmarks deleted in the browser; `--list` only shows what was found; `--no-fetch` skips fetching. |
 | `markfind fetch [--older-than AGE] [--failed] [--all]` | Download pages not fetched yet. `--older-than 90d` also refreshes pages fetched more than 90 days ago, `--failed` retries failed ones, `--all` re-fetches everything. Tuning: `--workers N` (default 8), `--timeout S` (default 10), `--delay S` between requests to the same site (default 1), `--max-retry-wait S` for sites that say "too many requests" (default 60). |

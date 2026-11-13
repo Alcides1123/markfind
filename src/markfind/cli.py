@@ -31,7 +31,7 @@ from .fetch import (
 from .formats import FORMATS, to_markdown
 from .importers import clean_tags, is_web_url, load_file
 from .server import DEFAULT_HOST, DEFAULT_PORT, serve
-from .store import Failure, QueryError, Store, to_fts_query
+from .store import Failure, QueryError, Record, Store, to_fts_query
 from .topics import MIN_SIZE
 
 _DURATION_UNITS = {"h": "hours", "d": "days", "w": "weeks"}
@@ -172,6 +172,79 @@ def cmd_add(store: Store, args: argparse.Namespace) -> int:
     # The page may be worth keeping even when it can't be read, so the
     # bookmark stays; the exit code says something went wrong.
     return 1 if failed else 0
+
+
+def cmd_remove(store: Store, args: argparse.Namespace) -> int:
+    filtered = args.folder is not None or args.tag is not None
+    if args.urls and filtered:
+        print(
+            "error: remove the addresses you name, or what --folder / --tag match, not both",
+            file=sys.stderr,
+        )
+        return 2
+    if not args.urls and not filtered:
+        print(
+            "error: nothing to remove: name an address, or use --folder or --tag", file=sys.stderr
+        )
+        return 2
+    for name, value in (("--folder", args.folder), ("--tag", args.tag)):
+        # An empty filter matches every bookmark, which is never what someone
+        # deleting things meant.
+        if value is not None and not value.strip():
+            print(f"error: {name} is empty, which would match every bookmark", file=sys.stderr)
+            return 2
+
+    if args.urls:
+        records = []
+        for given in args.urls:
+            record = store.bookmark(given.strip())
+            if record is None:
+                # Nothing is removed when one address is wrong, so a typo
+                # halfway down a long list doesn't leave the job half done.
+                return _not_in_markfind(given)
+            records.append(record)
+    else:
+        records = store.records(folder=args.folder, tag=args.tag)
+        if not records:
+            print("no bookmarks match")
+            return 1
+
+    for r in records:
+        # A bookmark never fetched has no title, and printing the address
+        # twice tells you nothing.
+        if r.title:
+            print(f"  {r.title}")
+        print(f"  {'  ' if r.title else ''}{r.url}")
+    if filtered and not args.yes:
+        # You named nothing, so say out loud what is about to go.
+        code = _ask_before_removing(records)
+        if code is not None:
+            return code
+
+    removed = store.delete(r.url for r in records)
+    print(f"removed {removed} {'bookmark' if removed == 1 else 'bookmarks'} from markfind")
+    print(STILL_IN_BROWSER_NOTE)
+    return 0
+
+
+def _ask_before_removing(records: list[Record]) -> int | None:
+    """Ask first. Returns the exit code to stop with, or None to go ahead."""
+    n = len(records)
+    print()
+    if any(r.saved for r in records):
+        print("Removing a bookmark removes its saved copy too.")
+    what = "this bookmark" if n == 1 else f"these {n} bookmarks"
+    answer = _confirm(f"Remove {what} from markfind?")
+    if answer is None:
+        print(
+            "error: not removing without confirmation; add --yes to remove without being asked",
+            file=sys.stderr,
+        )
+        return 1
+    if not answer:
+        print("nothing removed")
+        return 0
+    return None
 
 
 def cmd_import(store: Store, args: argparse.Namespace) -> int:
@@ -805,6 +878,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-fetch", action="store_true", help="add without downloading the pages")
     _add_fetch_options(p)
     p.set_defaults(func=cmd_add)
+
+    p = sub.add_parser(
+        "remove",
+        help="remove bookmarks from markfind (not from your browser)",
+        description=(
+            "Removes the bookmarks whose addresses you name, or every bookmark"
+            " --folder and --tag match. Naming addresses is confirmation enough;"
+            " a set markfind picked out is listed and confirmed first."
+        ),
+    )
+    p.add_argument("urls", nargs="*", metavar="URL")
+    p.add_argument("--folder", help="remove this folder and its subfolders, e.g. 'Old/Dev'")
+    p.add_argument("--tag", help="remove every bookmark with this tag (ignoring case)")
+    p.add_argument("-y", "--yes", action="store_true", help="with --folder or --tag, don't ask")
+    p.set_defaults(func=cmd_remove)
 
     p = sub.add_parser(
         "import",
