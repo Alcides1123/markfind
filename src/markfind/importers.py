@@ -76,8 +76,8 @@ def clean_tags(tags: Iterable[str]) -> tuple[str, ...]:
     result = []
     for tag in tags:
         tag = _clean(tag.replace(",", " "))
-        if tag and tag.lower() not in seen:
-            seen.add(tag.lower())
+        if tag and tag.casefold() not in seen:
+            seen.add(tag.casefold())
             result.append(tag)
     return tuple(result)
 

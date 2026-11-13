@@ -529,12 +529,12 @@ def cmd_tag(store: Store, args: argparse.Namespace) -> int:
 
     status = 0
     if args.remove:
-        gone = {tag.lower() for tag in removed}
-        from_browser = {tag.lower() for tag in current.browser}
+        gone = {tag.casefold() for tag in removed}
+        from_browser = {tag.casefold() for tag in current.browser}
         for tag in clean_tags(args.remove):
-            if tag.lower() in gone:
+            if tag.casefold() in gone:
                 continue
-            if tag.lower() in from_browser:
+            if tag.casefold() in from_browser:
                 print(f"{tag}: comes from your browser; remove it there", file=sys.stderr)
             else:
                 print(f"{tag}: you haven't added this tag", file=sys.stderr)
@@ -830,7 +830,10 @@ def _delete_failures(store: Store, failures: list[Failure], yes: bool) -> int:
 
 def _add_search_filters(p: argparse.ArgumentParser, tag: bool = True) -> None:
     """The filters that narrow a set of bookmarks the same way everywhere."""
-    p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
+    p.add_argument(
+        "--folder",
+        help="only this folder and its subfolders, ignoring case, e.g. 'Bookmarks bar/Dev'",
+    )
     if tag:
         p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
 
@@ -936,7 +939,10 @@ def _parser_remove(sub: Subparsers) -> None:
         ),
     )
     p.add_argument("urls", nargs="*", metavar="URL")
-    p.add_argument("--folder", help="remove this folder and its subfolders, e.g. 'Old/Dev'")
+    p.add_argument(
+        "--folder",
+        help="remove this folder and its subfolders, ignoring case, e.g. 'Old/Dev'",
+    )
     p.add_argument("--tag", help="remove every bookmark with this tag (ignoring case)")
     p.add_argument("-y", "--yes", action="store_true", help="with --folder or --tag, don't ask")
     p.set_defaults(func=cmd_remove)

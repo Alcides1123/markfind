@@ -298,6 +298,31 @@ evaluation itself is on the [roadmap](../ROADMAP.md).
 The snippet is FTS5's `snippet()` over the `body` column: up to 16 tokens
 around the matches.
 
+### Narrowing by folder or tag
+
+`--folder` and `--tag` both ignore case, and both do it in Python rather than
+in SQL. SQLite's `lower()` and `LIKE` fold `A`-`Z` and leave every other letter
+alone, so `--tag CAFÉ` would miss a bookmark tagged `Café`. `Store` registers
+`str.casefold` as an SQL function named `casefold()` and both filters go
+through it, on the stored value and on what you typed:
+
+```sql
+casefold(folder) || '/' LIKE 'reading/%' ESCAPE '\'
+instr(',' || casefold(tags) || ',', ',' || 'café' || ',') > 0
+```
+
+`casefold` rather than `lower` because it is meant for caseless comparison: it
+folds `ß` to `ss` and Greek final sigma, which `lower` leaves alone. The same
+function is what de-duplicates tags, so `markfind tag URL CAFÉ` doesn't add a
+second spelling of a tag the bookmark already has.
+
+The trailing `/` on both sides of the folder comparison turns "this folder, or
+anything under it" into one prefix test, which is why `Dev` doesn't match a
+sibling `Dev2`. `%` and `_` in a folder name are escaped first, so a folder
+really called `100%_off` isn't a wildcard. Folding costs a Python call per row:
+on 10,000 bookmarks a folder filter goes from 4.8 ms to 13.6 ms, against the
+seconds that fetching a page takes.
+
 ## The web interface
 
 `markfind serve` (`server.py`) is a `ThreadingHTTPServer` with JSON
@@ -307,7 +332,7 @@ endpoints, a page for saved copies, and three static files. The files (`web/inde
 | Endpoint | Returns |
 |---|---|
 | `GET /api/similar?url=…&limit=N` | `{"url", "title", "keywords", "results": [...]}`, results as for search. `400` without `url`, `404` if the bookmark isn't in markfind. |
-| `GET /api/search?q=…&raw=1&folder=PATH&tag=TAG&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags, note, saved}]}`. `saved` says whether there's a saved copy. `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag, ignoring case. With `tag` and no `q`, lists the bookmarks with that tag in folder order, with empty snippets. `400` with `{"error"}` for an invalid raw query. |
+| `GET /api/search?q=…&raw=1&folder=PATH&tag=TAG&limit=N` | `{"query", "results": [{url, title, folder, snippet, tags, note, saved}]}`. `saved` says whether there's a saved copy. `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag. Both ignore case. With `tag` and no `q`, lists the bookmarks with that tag in folder order, with empty snippets. `400` with `{"error"}` for an invalid raw query. |
 | `GET /api/folders` | `{"folders": [{path, count}]}`: every folder, parents included, in tree order. A count includes subfolders. |
 | `GET /api/tags` | `{"tags": [{tag, count}]}`: every tag, most used first, as [`markfind tags`](cli.md#tags) lists them. |
 | `GET /api/broken?all=1` | `{"all", "failures": [{url, title, folder, kind, error, checked, saved}]}` |
