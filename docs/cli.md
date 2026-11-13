@@ -88,7 +88,7 @@ writes a clean bookmark file you can import into the browser.
 
 | Option | Meaning |
 |---|---|
-| `--folder PATH` | Remove this folder and its subfolders, e.g. `--folder "Old/Dev"`. |
+| `--folder PATH` | Remove this folder and its subfolders, ignoring case, e.g. `--folder "Old/Dev"`. |
 | `--tag TAG` | Remove every bookmark with this tag, ignoring case. |
 | `-y`, `--yes` | With `--folder` or `--tag`, remove without asking. |
 
@@ -355,7 +355,7 @@ show the bookmark's tags and the start of its note.
 |---|---|
 | `-n N`, `--limit N` | Show at most `N` results (default 20). |
 | `--raw` | Pass the query to SQLite FTS5 unchanged (see below). |
-| `--folder PATH` | Only bookmarks in this folder and its subfolders, e.g. `--folder "Bookmarks bar/Dev"`. `Dev` doesn't include a sibling folder named `Dev2`. |
+| `--folder PATH` | Only bookmarks in this folder and its subfolders, ignoring case, e.g. `--folder "Bookmarks bar/Dev"`. `Dev` doesn't include a sibling folder named `Dev2`. |
 | `--tag TAG` | Only bookmarks with this tag, ignoring case. Whole tags only: `--tag py` doesn't match `python`. |
 
 ### Plain queries (default)
@@ -427,7 +427,7 @@ run `markfind search`, then pass it the address you wanted.
 | `--all` | Open every match, not just the best one. |
 | `-p`, `--print` | Print the addresses instead of opening them, for scripts. |
 | `--raw` | Pass the query to SQLite FTS5 unchanged, as in [`search`](#search). |
-| `--folder PATH` | Only bookmarks in this folder and its subfolders. |
+| `--folder PATH` | Only bookmarks in this folder and its subfolders, ignoring case. |
 | `--tag TAG` | Only bookmarks with this tag, ignoring case. |
 
 It prints what it opened, and whether anything else matched, so the best match
@@ -529,7 +529,7 @@ Within a topic, the most typical bookmarks come first.
 |---|---|
 | `--count N` | How many topics to look for. By default markfind starts from one topic per 3 bookmarks, up to 40, then merges topics that turn out to be about the same thing. With `--count`, you get that many (fewer only if some are too small). |
 | `--min-size N` | Topics with fewer bookmarks are dissolved into *No clear topic* (default 3). |
-| `--folder PATH` | Only this folder and its subfolders, to sort out one big folder. |
+| `--folder PATH` | Only this folder and its subfolders, ignoring case, to sort out one big folder. |
 | `--json` | Print `{"topics": [{label, bookmarks: [{url, title, folder}]}], "other": [...], "unindexed": N}`. |
 
 Only bookmarks with page text take part; the end of the report says how many
@@ -554,7 +554,8 @@ folder and then title. Empty fields are shown as `-`.
 
 `--folder PATH` limits the list to that folder and its subfolders. For
 example, `--folder "Bookmarks bar/Dev"` includes `Bookmarks bar/Dev/Python`
-but not `Bookmarks bar/Devices`. `--tag TAG` lists only bookmarks with that
+but not `Bookmarks bar/Devices`. Case is ignored, in any alphabet, so
+`--folder "bookmarks bar/dev"` is the same filter. `--tag TAG` lists only bookmarks with that
 tag.
 
 ---
@@ -809,7 +810,7 @@ Writes bookmarks out, to standard output or to `FILE`.
 | Option | Meaning |
 |---|---|
 | `-o FILE`, `--output FILE` | Write to `FILE` instead of standard output. |
-| `--folder PATH` | Only this folder and its subfolders. |
+| `--folder PATH` | Only this folder and its subfolders, ignoring case. |
 | `--tag TAG` | Only bookmarks with this tag. |
 | `--query WORDS` | Only bookmarks matching this search, best match first. Quote it if it has several words. |
 | `--raw` | `--query` uses [FTS5 syntax](#raw-queries---raw). |

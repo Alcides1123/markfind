@@ -44,6 +44,7 @@ The tests never touch the network:
 | `test_duplicates.py` | URL normalization (what must and must not match), text grouping, `markfind duplicates` |
 | `test_errors.py` | Failure classification and schema migrations |
 | `test_store.py` | Storage, indexing and search |
+| `test_case.py` | Ignoring case means ignoring case: `--folder` and `--tag` over accents, Greek, `ß` and a dotted capital I, in the store, the CLI and the API |
 | `test_folders.py` | The folder tree, searching one folder (including names with `%` and `_`), `search --folder` |
 | `test_similar.py` | `markfind similar`: keyword choice, ranking, stemming, read-only use |
 | `test_pdf.py` | PDF bookmarks: reading text and titles, limits, damaged and scanned files, running without `pypdf` |

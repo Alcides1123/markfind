@@ -1,6 +1,7 @@
 import http.client
 import json
 import threading
+from urllib.parse import quote
 
 import pytest
 
@@ -150,6 +151,44 @@ def test_tags_and_tag_filter(tagged_server):
     assert sorted(r["url"] for r in data["results"]) == ["https://a.example/", "https://b.example/"]
     _, data = get_json(tagged_server, "/api/search?q=ranking&tag=search&folder=Old")
     assert [r["url"] for r in data["results"]] == ["https://b.example/"]
+
+
+@pytest.fixture
+def accented_server(tmp_path):
+    path = tmp_path / "accented.sqlite"
+    with Store(path) as store:
+        store.add_bookmarks(
+            [
+                Bookmark("https://a.example/", "Alpha", "Reading", tags=("Café",)),
+                Bookmark("https://b.example/", "Beta", "Reading/Cafés", tags=("Straße",)),
+            ]
+        )
+        for id_, _ in store.pending():
+            store.set_page(id_, "ranking with bm25")
+    srv = MarkfindServer(path, "127.0.0.1", 0)
+    thread = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
+    thread.start()
+    yield srv
+    srv.shutdown()
+    srv.server_close()
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("tag=Café", ["https://a.example/"]),
+        ("tag=CAFÉ", ["https://a.example/"]),  # the same tag, shouted
+        ("tag=STRASSE", ["https://b.example/"]),  # ß folds to ss
+        ("folder=Reading", ["https://a.example/", "https://b.example/"]),
+        ("folder=reading", ["https://a.example/", "https://b.example/"]),
+        ("folder=READING/CAFÉS", ["https://b.example/"]),
+    ],
+)
+def test_the_api_ignores_case_outside_ascii_too(accented_server, query, expected):
+    """`folder` and `tag` fold the same way here as on the command line; see #90."""
+    name, _, value = query.partition("=")
+    _, data = get_json(accented_server, f"/api/search?q=ranking&{name}={quote(value)}")
+    assert sorted(r["url"] for r in data["results"]) == expected
 
 
 def test_tag_without_query_lists_its_bookmarks(tagged_server):

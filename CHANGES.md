@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed: `--folder` and `--tag` only ignored case for `A`-`Z`, because SQLite's
+  `lower()` and `LIKE` do. `--tag CAFÉ` found nothing though `--tag café` found
+  the bookmark, and `--folder` was worse than either: its two halves disagreed,
+  so `--folder reading` silently returned the bookmarks *below* `Reading` and
+  dropped the ones in it. Both filters now fold case with Python's
+  `str.casefold`, in any alphabet, as do the comparisons that de-duplicate
+  tags. `--folder` is case-insensitive throughout, like `--tag` (#90).
+
 - Internal: `build_parser` was one 333-line function defining all 19
   commands; each command now has its own `_parser_<name>` function and
   `build_parser` is the list of them. The repeated `--folder` / `--tag`,

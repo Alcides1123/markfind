@@ -298,18 +298,27 @@ def _to_record(row: tuple) -> Record:
 
 
 def _in_folder(folder: str | None, column: str = "folder") -> tuple[str, tuple[str, ...]]:
-    """An SQL condition matching a folder and its subfolders; always true if no folder."""
+    """An SQL condition matching a folder and its subfolders; always true if no folder.
+
+    Ignores case, as ``_has_tag`` does. Putting a separator after both sides
+    makes "this folder, or anything under it" a single prefix test: ``Dev/``
+    starts with ``Dev/`` and so does ``Dev/web/``, while ``Dev2/`` does not.
+    """
     if not folder:
         return "1", ()
-    escaped = folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"({column} = ? OR {column} LIKE ? ESCAPE '\\')", (folder, escaped + "/%")
+    folded = folder.casefold()
+    escaped = folded.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"casefold({column}) || '/' LIKE ? ESCAPE '\\'", (escaped + "/%",)
 
 
 def _has_tag(tag: str | None, column: str = "tags") -> tuple[str, tuple[str, ...]]:
     """An SQL condition matching bookmarks with this tag, ignoring case; true if no tag."""
     if not tag or not tag.strip():
         return "1", ()
-    return f"instr(',' || lower({column}) || ',', ',' || lower(?) || ',') > 0", (tag.strip(),)
+    return (
+        f"instr(',' || casefold({column}) || ',', ',' || ? || ',') > 0",
+        (tag.strip().casefold(),),
+    )
 
 
 def _record_columns() -> str:
@@ -367,6 +376,16 @@ def to_fts_query(text: str) -> str:
     return " ".join('"' + word.replace('"', '""') + '"' for word in text.split())
 
 
+def _casefold(value: str | None) -> str | None:
+    """``str.casefold`` for SQLite, which has no caseless comparison of its own.
+
+    SQLite's ``lower()`` and ``LIKE`` fold ``A``-``Z`` and nothing else, so the
+    caseless filters in this module go through this instead: see ``_in_folder``
+    and ``_has_tag``.
+    """
+    return value.casefold() if isinstance(value, str) else value
+
+
 class Store:
     def __init__(self, path: str | Path, readonly: bool = False) -> None:
         """Open (and create or migrate) a database.
@@ -378,10 +397,12 @@ class Store:
         if readonly:
             uri = Path(path).resolve().as_uri() + "?mode=ro"
             self.db = sqlite3.connect(uri, uri=True)
-            return
-        self.db = sqlite3.connect(str(path))
-        self.db.executescript(SCHEMA)
-        self._migrate()
+        else:
+            self.db = sqlite3.connect(str(path))
+        self.db.create_function("casefold", 1, _casefold, deterministic=True)
+        if not readonly:
+            self.db.executescript(SCHEMA)
+            self._migrate()
 
     def _migrate(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
@@ -536,8 +557,8 @@ class Store:
         """
         id_ = self._id(url)
         current = self.bookmark_tags(url)
-        have = {tag.lower() for tag in current.all}
-        added = tuple(tag for tag in clean_tags(tags) if tag.lower() not in have)
+        have = {tag.casefold() for tag in current.all}
+        added = tuple(tag for tag in clean_tags(tags) if tag.casefold() not in have)
         if added:
             with self.db:
                 self.db.execute(
@@ -556,10 +577,10 @@ class Store:
         """
         id_ = self._id(url)
         current = self.bookmark_tags(url)
-        unwanted = {tag.lower() for tag in clean_tags(tags)}
-        removed = tuple(tag for tag in current.mine if tag.lower() in unwanted)
+        unwanted = {tag.casefold() for tag in clean_tags(tags)}
+        removed = tuple(tag for tag in current.mine if tag.casefold() in unwanted)
         if removed:
-            kept = [tag for tag in current.mine if tag.lower() not in unwanted]
+            kept = [tag for tag in current.mine if tag.casefold() not in unwanted]
             with self.db:
                 self.db.execute(
                     "UPDATE bookmarks SET my_tags = ? WHERE id = ?", (_join_tags(kept), id_)
@@ -941,9 +962,9 @@ class Store:
         spellings: dict[str, Counter[str]] = {}
         for (value,) in self.db.execute("SELECT tags FROM bookmarks WHERE tags != ''"):
             for tag in _split_tags(value):
-                spellings.setdefault(tag.lower(), Counter())[tag] += 1
+                spellings.setdefault(tag.casefold(), Counter())[tag] += 1
         counts = [(names.most_common(1)[0][0], sum(names.values())) for names in spellings.values()]
-        return sorted(counts, key=lambda item: (-item[1], item[0].lower()))
+        return sorted(counts, key=lambda item: (-item[1], item[0].casefold()))
 
     def folders(self) -> list[tuple[str, int]]:
         """Every folder path, parents included, with how many bookmarks it holds.

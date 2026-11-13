@@ -94,11 +94,11 @@ thread.
 | `set_page(id, text, page_title="", html="")` | Store fetched text and clear any error. `page_title` is used only if the bookmark has no title. `html` is the readable copy to save (`Page.html`; it must be safe to show); without it, an earlier copy is kept. |
 | `set_error(id, message, kind="other")` | Record a failed fetch. The indexed text and saved copy are kept. |
 | `saved_copy(url) -> SavedCopy \| None` | The page's saved copy, or else its indexed text (`text_only=True`); `None` if there's neither. Raises `KeyError` if the URL isn't in markfind. |
-| `search(query, limit=20, mark=("[", "]"), exclude=None, folder=None, tag=None) -> list[SearchResult]` | Run an FTS5 query. `mark` wraps matched words in the snippet; `exclude` leaves out one bookmark id; `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag (ignoring case). Raises `QueryError` for invalid syntax. |
+| `search(query, limit=20, mark=("[", "]"), exclude=None, folder=None, tag=None) -> list[SearchResult]` | Run an FTS5 query. `mark` wraps matched words in the snippet; `exclude` leaves out one bookmark id; `folder` keeps one folder and its subfolders; `tag` keeps bookmarks with that tag. Both ignore case. Raises `QueryError` for invalid syntax. |
 | `similar(url, limit=10, mark=("[", "]")) -> Similar` | Bookmarks most like this one (see [`markfind similar`](cli.md#similar)). Raises `KeyError` if the URL isn't in the database. Works on read-only connections. |
 | `failures(kinds=None) -> list[Failure]` | Bookmarks whose last fetch failed, optionally only the given kinds. |
-| `list_bookmarks(folder=None, tag=None) -> list[(url, title, folder)]` | All bookmarks, or one folder and its subfolders, or one tag. |
-| `tags() -> list[(tag, count)]` | Every tag, most used first. Tags differing only in case count as one. |
+| `list_bookmarks(folder=None, tag=None) -> list[(url, title, folder)]` | All bookmarks, or one folder and its subfolders, or one tag. Both ignore case. |
+| `tags() -> list[(tag, count)]` | Every tag, most used first. Tags differing only in case count as one, under the most common spelling. |
 | `bookmark_tags(url) -> BookmarkTags` | One bookmark's tags: `browser` (from the last import), `mine` (added with `add_tags`), and `all`, both together. |
 | `add_tags(url, tags) -> tuple` | Add your own tags. Returns those the bookmark didn't have yet (ignoring case). Imports never change them. |
 | `remove_tags(url, tags) -> tuple` | Remove tags added with `add_tags`. Returns those removed; browser tags are left alone. |
