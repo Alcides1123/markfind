@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Internal: `build_parser` was one 333-line function defining all 19
+  commands; each command now has its own `_parser_<name>` function and
+  `build_parser` is the list of them. The repeated `--folder` / `--tag`,
+  `--raw` and bookmark-URL arguments moved into shared helpers. No command,
+  option or help text changed (#88).
+- `markfind export --folder` and `markfind topics --folder` now describe
+  themselves the same way the other three folder filters do, with the
+  `'Bookmarks bar/Dev'` example; they were the only two spelling it
+  differently (#88).
+
 - New `markfind remove URL...` takes bookmarks out again, by address or by
   `--folder` / `--tag`. Until now only sets markfind picked itself could be
   deleted (`broken --delete`, `duplicates --delete`, `--prune`). Addresses you

@@ -828,6 +828,25 @@ def _delete_failures(store: Store, failures: list[Failure], yes: bool) -> int:
     return 0
 
 
+def _add_search_filters(p: argparse.ArgumentParser, tag: bool = True) -> None:
+    """The filters that narrow a set of bookmarks the same way everywhere."""
+    p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
+    if tag:
+        p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+
+
+def _add_raw_option(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--raw",
+        action="store_true",
+        help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
+    )
+
+
+def _add_bookmark_url(p: argparse.ArgumentParser) -> None:
+    p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
+
+
 def _add_fetch_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--workers", type=int, default=8, help="parallel downloads (default: 8)")
     p.add_argument("--timeout", type=float, default=10.0, help="seconds per page (default: 10)")
@@ -848,6 +867,10 @@ def _add_fetch_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("-q", "--quiet", action="store_true", help="only print the summary")
 
 
+# What parser.add_subparsers() returns; argparse names no public type for it.
+Subparsers = argparse._SubParsersAction
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="markfind", description="Full-text search over your browser bookmarks."
@@ -860,7 +883,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="database file (default: $MARKFIND_DB or ~/.markfind.sqlite)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    _parser_add(sub)
+    _parser_remove(sub)
+    _parser_import(sub)
+    _parser_sync(sub)
+    _parser_fetch(sub)
+    _parser_search(sub)
+    _parser_open(sub)
+    _parser_similar(sub)
+    _parser_list(sub)
+    _parser_tags(sub)
+    _parser_tag(sub)
+    _parser_note(sub)
+    _parser_topics(sub)
+    _parser_duplicates(sub)
+    _parser_archive(sub)
+    _parser_stats(sub)
+    _parser_export(sub)
+    _parser_broken(sub)
+    _parser_serve(sub)
+    return parser
 
+
+def _parser_add(sub: Subparsers) -> None:
     p = sub.add_parser(
         "add",
         help="add a bookmark by its address and index the page",
@@ -879,6 +924,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_fetch_options(p)
     p.set_defaults(func=cmd_add)
 
+
+def _parser_remove(sub: Subparsers) -> None:
     p = sub.add_parser(
         "remove",
         help="remove bookmarks from markfind (not from your browser)",
@@ -894,6 +941,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-y", "--yes", action="store_true", help="with --folder or --tag, don't ask")
     p.set_defaults(func=cmd_remove)
 
+
+def _parser_import(sub: Subparsers) -> None:
     p = sub.add_parser(
         "import",
         help="import an HTML export or a browser's own bookmarks file (Chrome, Firefox, Safari)",
@@ -906,6 +955,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_import)
 
+
+def _parser_sync(sub: Subparsers) -> None:
     p = sub.add_parser(
         "sync",
         help="import from installed browsers and fetch new pages, in one step",
@@ -929,6 +980,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_fetch_options(p)
     p.set_defaults(func=cmd_sync)
 
+
+def _parser_fetch(sub: Subparsers) -> None:
     p = sub.add_parser("fetch", help="download bookmarked pages and index their text")
     p.add_argument("--all", action="store_true", help="re-fetch pages that were already fetched")
     p.add_argument(
@@ -946,18 +999,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_fetch_options(p)
     p.set_defaults(func=cmd_fetch)
 
+
+def _parser_search(sub: Subparsers) -> None:
     p = sub.add_parser("search", help="search titles, URLs, folders and page text")
     p.add_argument("query", nargs="+")
     p.add_argument("-n", "--limit", type=int, default=20)
-    p.add_argument(
-        "--raw",
-        action="store_true",
-        help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
-    )
-    p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
-    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+    _add_raw_option(p)
+    _add_search_filters(p)
     p.set_defaults(func=cmd_search)
 
+
+def _parser_open(sub: Subparsers) -> None:
     p = sub.add_parser(
         "open",
         help="open the best search result in your browser",
@@ -977,15 +1029,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print the addresses instead of opening them",
     )
-    p.add_argument(
-        "--raw",
-        action="store_true",
-        help="pass the query to SQLite FTS5 unchanged (OR, NEAR, title:...)",
-    )
-    p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
-    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+    _add_raw_option(p)
+    _add_search_filters(p)
     p.set_defaults(func=cmd_open)
 
+
+def _parser_similar(sub: Subparsers) -> None:
     p = sub.add_parser(
         "similar",
         help="find bookmarks like a given one",
@@ -998,11 +1047,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-n", "--limit", type=int, default=10)
     p.set_defaults(func=cmd_similar)
 
+
+def _parser_list(sub: Subparsers) -> None:
     p = sub.add_parser("list", help="list bookmarks")
-    p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
-    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+    _add_search_filters(p)
     p.set_defaults(func=cmd_list)
 
+
+def _parser_tags(sub: Subparsers) -> None:
     p = sub.add_parser(
         "tags",
         help="list tags and how many bookmarks have each",
@@ -1013,6 +1065,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_tags)
 
+
+def _parser_tag(sub: Subparsers) -> None:
     p = sub.add_parser(
         "tag",
         help="add or remove your own tags on a bookmark",
@@ -1022,7 +1076,7 @@ def build_parser() -> argparse.ArgumentParser:
             " the bookmark's tags."
         ),
     )
-    p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
+    _add_bookmark_url(p)
     p.add_argument("tags", nargs="*", metavar="TAG", help="tags to add")
     p.add_argument(
         "--remove",
@@ -1032,6 +1086,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_tag)
 
+
+def _parser_note(sub: Subparsers) -> None:
     p = sub.add_parser(
         "note",
         help="write a searchable note on a bookmark",
@@ -1040,11 +1096,13 @@ def build_parser() -> argparse.ArgumentParser:
             " and shown in search results. Without text, shows the note."
         ),
     )
-    p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
+    _add_bookmark_url(p)
     p.add_argument("text", nargs="*", help="the note; quotes are optional")
     p.add_argument("--clear", action="store_true", help="remove the note")
     p.set_defaults(func=cmd_note)
 
+
+def _parser_topics(sub: Subparsers) -> None:
     p = sub.add_parser(
         "topics",
         help="group bookmarks into topics by their words",
@@ -1068,10 +1126,12 @@ def build_parser() -> argparse.ArgumentParser:
             f"smallest topic to show; smaller ones go under 'No clear topic' (default: {MIN_SIZE})"
         ),
     )
-    p.add_argument("--folder", help="only this folder and its subfolders")
+    _add_search_filters(p, tag=False)
     p.add_argument("--json", action="store_true", help="print the topics as JSON")
     p.set_defaults(func=cmd_topics)
 
+
+def _parser_duplicates(sub: Subparsers) -> None:
     p = sub.add_parser(
         "duplicates",
         help="find bookmarks saved more than once",
@@ -1098,6 +1158,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_duplicates)
 
+
+def _parser_archive(sub: Subparsers) -> None:
     p = sub.add_parser(
         "archive",
         help="read the saved copy of a page, even after it's gone",
@@ -1108,7 +1170,7 @@ def build_parser() -> argparse.ArgumentParser:
             " indexed text instead."
         ),
     )
-    p.add_argument("url", help="the bookmark's URL, as 'markfind list' or 'search' shows it")
+    _add_bookmark_url(p)
     shown = p.add_mutually_exclusive_group()
     shown.add_argument(
         "-o", "--output", metavar="FILE", help="write the page to FILE instead of opening it"
@@ -1116,9 +1178,13 @@ def build_parser() -> argparse.ArgumentParser:
     shown.add_argument("--text", action="store_true", help="print the plain text instead")
     p.set_defaults(func=cmd_archive)
 
+
+def _parser_stats(sub: Subparsers) -> None:
     p = sub.add_parser("stats", help="show how many bookmarks are indexed")
     p.set_defaults(func=cmd_stats)
 
+
+def _parser_export(sub: Subparsers) -> None:
     p = sub.add_parser(
         "export",
         help="write bookmarks to a file browsers can import, or Markdown, JSON, CSV",
@@ -1129,8 +1195,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("-f", "--format", choices=tuple(FORMATS), default="html", help="default: html")
     p.add_argument("-o", "--output", type=Path, help="file to write (default: standard output)")
-    p.add_argument("--folder", help="only this folder and its subfolders")
-    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+    _add_search_filters(p)
     p.add_argument(
         "--query", metavar="WORDS", help="only bookmarks matching this search, best first"
     )
@@ -1142,6 +1207,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_export)
 
+
+def _parser_broken(sub: Subparsers) -> None:
     p = sub.add_parser(
         "broken",
         help="list bookmarks whose pages could not be fetched",
@@ -1166,6 +1233,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-y", "--yes", action="store_true", help="with --delete, don't ask first")
     p.set_defaults(func=cmd_broken)
 
+
+def _parser_serve(sub: Subparsers) -> None:
     p = sub.add_parser(
         "serve",
         help="search your bookmarks in a web browser",
@@ -1179,8 +1248,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"port (default: {DEFAULT_PORT})")
     p.add_argument("--open", action="store_true", help="open the page in your web browser")
     p.set_defaults(func=cmd_serve)
-
-    return parser
 
 
 def main(argv: list[str] | None = None) -> int:

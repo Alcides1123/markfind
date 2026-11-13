@@ -54,6 +54,7 @@ The tests never touch the network:
 | `test_archive_safety.py` | The saved-copy allowlist as an invariant: hostile markup in, only allowed tags and attributes out |
 | `test_saved_copies.py` | Saved copies: sanitizing, storage, `markfind archive`, the sandboxed `/archive` page |
 | `test_cli.py` | The `markfind` command end to end |
+| `test_parser.py` | Every command is registered, has a handler, and appears in the help, the command reference and the README |
 | `test_sync.py` | Browser detection with fake home folders, pruning, `sync` and `import --prune` |
 | `test_examples.py` | The scripts in `examples/` |
 
