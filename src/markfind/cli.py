@@ -828,10 +828,11 @@ def _delete_failures(store: Store, failures: list[Failure], yes: bool) -> int:
     return 0
 
 
-def _add_search_filters(p: argparse.ArgumentParser) -> None:
-    """The two filters that narrow a set of bookmarks the same way everywhere."""
+def _add_search_filters(p: argparse.ArgumentParser, tag: bool = True) -> None:
+    """The filters that narrow a set of bookmarks the same way everywhere."""
     p.add_argument("--folder", help="only this folder and its subfolders, e.g. 'Bookmarks bar/Dev'")
-    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+    if tag:
+        p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
 
 
 def _add_raw_option(p: argparse.ArgumentParser) -> None:
@@ -1125,7 +1126,7 @@ def _parser_topics(sub: Subparsers) -> None:
             f"smallest topic to show; smaller ones go under 'No clear topic' (default: {MIN_SIZE})"
         ),
     )
-    p.add_argument("--folder", help="only this folder and its subfolders")
+    _add_search_filters(p, tag=False)
     p.add_argument("--json", action="store_true", help="print the topics as JSON")
     p.set_defaults(func=cmd_topics)
 
@@ -1194,8 +1195,7 @@ def _parser_export(sub: Subparsers) -> None:
     )
     p.add_argument("-f", "--format", choices=tuple(FORMATS), default="html", help="default: html")
     p.add_argument("-o", "--output", type=Path, help="file to write (default: standard output)")
-    p.add_argument("--folder", help="only this folder and its subfolders")
-    p.add_argument("--tag", help="only bookmarks with this tag (ignoring case)")
+    _add_search_filters(p)
     p.add_argument(
         "--query", metavar="WORDS", help="only bookmarks matching this search, best first"
     )
