@@ -799,7 +799,7 @@ Writes bookmarks out, to standard output or to `FILE`.
 
 | Format | What you get |
 |---|---|
-| `html` (default) | A standard bookmark file with your folders, dates, tags and notes. Every browser can import it; Firefox keeps the tags and shows notes as the bookmark's description. |
+| `html` (default) | A standard bookmark file with your folders, dates, tags and notes. Every browser can import it; Firefox keeps the tags and shows notes as the bookmark's description. A bookmark markfind hasn't fetched yet has no title, so its address is used as the link text; importing the file back reads that as no title again. |
 | `markdown` | A reading list: a heading per folder and `- [Title](url)` links, each followed by its note. With `--query`, a numbered list in ranked order. |
 | `json` | A list of objects with `url`, `title`, `folder`, `added_at`, `fetched_at`, `status`, `tags` (a list) and `note`. |
 | `csv` | The same fields as columns, with tags separated by commas. Written with a byte-order mark when saved to a file, so Excel reads it as UTF-8. |
