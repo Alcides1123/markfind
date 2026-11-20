@@ -57,6 +57,27 @@ def test_one_changed_field_is_one_update(store, change):
     assert imported(store, **fields) == (0, 0)
 
 
+def test_a_source_with_no_name_for_it_does_not_erase_a_fetched_title(store):
+    """A browser bookmark with no name of its own; see #95."""
+    imported(store, title="")
+    (id_,) = (i for i, _ in store.pending())
+    store.set_page(id_, "sourdough starter instructions", page_title="Sourdough Starter")
+    assert store.bookmark(URL).title == "Sourdough Starter"
+
+    assert imported(store, title="") == (0, 0)
+    assert store.bookmark(URL).title == "Sourdough Starter"
+    assert [r.title for r in store.search("sourdough")] == ["Sourdough Starter"]
+
+
+def test_a_name_the_browser_does_have_still_wins(store):
+    """Only silence is kept out; a title the source states is applied as before."""
+    imported(store, title="")
+    (id_,) = (i for i, _ in store.pending())
+    store.set_page(id_, "the page text", page_title="The Page's Own Title")
+    assert imported(store, title="Renamed in the Browser") == (0, 1)
+    assert store.bookmark(URL).title == "Renamed in the Browser"
+
+
 def test_a_source_that_cannot_say_leaves_tags_and_source_alone(store):
     """tags=None means "this browser has no tags", not "it has none"."""
     imported(store, tags=("python",))
@@ -175,6 +196,35 @@ def listing(path, *urls):
         encoding="utf-8",
     )
     return path
+
+
+def test_cli_a_second_import_keeps_a_fetched_title(tmp_path, capsys, monkeypatch):
+    """The whole path from #95: an unnamed bookmark, fetched, then imported again."""
+    from markfind.extract import Page
+
+    db = tmp_path / "db.sqlite"
+    # A link whose text is its own address has no title, so this is a bookmark
+    # the browser has no name for.
+    marks = tmp_path / "marks.html"
+    marks.write_text(
+        "<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<DL><p>\n"
+        f'<DT><H3>Dev</H3>\n<DL><p>\n<DT><A HREF="{URL}">{URL}</A>\n</DL><p>\n</DL><p>\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli, "fetch_page", lambda url, timeout=10.0: Page(title="Sourdough Starter", text="starter")
+    )
+
+    assert cli.main(["--db", str(db), "import", str(marks)]) == 0
+    assert cli.main(["--db", str(db), "fetch", "--delay", "0"]) == 0
+    capsys.readouterr()
+    with Store(db, readonly=True) as store:
+        assert store.bookmark(URL).title == "Sourdough Starter"
+
+    assert cli.main(["--db", str(db), "import", str(marks)]) == 0
+    assert "0 added, 0 updated" in capsys.readouterr().out
+    with Store(db, readonly=True) as store:
+        assert store.bookmark(URL).title == "Sourdough Starter"
 
 
 def test_cli_prune_still_knows_where_a_bookmark_came_from(tmp_path, capsys):

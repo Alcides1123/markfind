@@ -82,7 +82,10 @@ chain to build the path:
 **An import that brings nothing new writes nothing.** For each bookmark the
 file and the database have in common, `add_bookmarks` works out what the import
 would leave behind -- title, folder, source, the browser's tags and the
-combined `tags` column -- and compares it with what is stored. If they match,
+combined `tags` column -- and compares it with what is stored. An empty title
+in the source counts as "no name for this bookmark" rather than "its name is
+nothing", so a title `markfind fetch` found survives the next import; an empty
+*folder* is not silence, since a bookmark at the top level really has none. If they match,
 the row is left alone and isn't counted as updated, so `N updated` means `N`
 bookmarks changed rather than `N` bookmarks were in both files.
 

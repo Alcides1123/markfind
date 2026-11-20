@@ -471,7 +471,11 @@ class Store:
                     # than with coalesce() in SQL, so it can be compared.
                     browser = was_browser if tags is None else tags
                     wants = (
-                        bm.title,
+                        # No title in the source means it has no name for this
+                        # bookmark, not that its name is nothing, so a title
+                        # the fetch found is kept. An empty *folder* is not
+                        # silence: a bookmark at the top level has none.
+                        bm.title or was_title,
                         bm.folder,
                         was_source if source is None else source,
                         browser,

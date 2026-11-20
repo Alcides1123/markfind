@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed: re-importing an unchanged browser file erased titles that
+  `markfind fetch` had found. A bookmark the browser has no name for imports
+  with an empty title, and the import wrote that empty title back over whatever
+  markfind had learned -- so the next `markfind sync` after a fetch undid it. An
+  empty title in a source now means "no name for this bookmark" rather than
+  "its name is nothing", the same way `tags=None` already meant "this source
+  can't hold tags" (#95).
+
 - Fixed: `N updated` counted the bookmarks a file and the database had in
   common, not the ones that changed, so the second and every later
   `markfind sync` reported every bookmark as updated. It now counts real
