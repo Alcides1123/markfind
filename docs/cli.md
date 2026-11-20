@@ -133,9 +133,14 @@ Rules:
 - Only `http://` and `https://` URLs are kept.
 - From Firefox, tags are ignored (they're stored as extra copies of tagged
   bookmarks), and a bookmark with no title uses the page title from history.
+- A bookmark the file has no name for keeps the title markfind already has, so
+  importing again doesn't undo a title [`fetch`](#fetch) found. A name the file
+  *does* give wins, as before.
 - A bookmark is identified by its exact URL. Importing a URL that's already in
   the database **updates** its title and folder and keeps its fetched page
   text, so re-importing a fresh export is always safe.
+- `N updated` counts the bookmarks that *changed*. Importing a file nothing has
+  changed in reports `0 added, 0 updated` and writes nothing at all.
 - If the same URL appears twice in one file, the last occurrence wins.
 - Each bookmark remembers the file it was last imported from.
 - `--prune` removes bookmarks that were imported from these files before but

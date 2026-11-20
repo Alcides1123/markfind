@@ -445,31 +445,52 @@ class Store:
     def add_bookmarks(
         self, bookmarks: Iterable[Bookmark], source: str | None = None
     ) -> tuple[int, int]:
-        """Insert new bookmarks and refresh existing ones. Returns (added, updated).
+        """Insert new bookmarks and refresh the ones that changed. Returns (added, updated).
 
         ``source`` names the file they came from, which ``prune`` uses later;
         when it's None, existing bookmarks keep their recorded source.
+
+        A bookmark the import brings nothing new for is left untouched, and
+        isn't counted as updated. Importing the same file twice is not a
+        change, and rewriting the row would delete and reinsert its FTS entry
+        -- which is how the index used to grow by megabytes per re-import.
         """
         added = updated = 0
         with self.db:
             for bm in bookmarks:
                 row = self.db.execute(
-                    "SELECT id FROM bookmarks WHERE url = ?", (bm.url,)
+                    "SELECT id, title, folder, source, browser_tags, my_tags, tags"
+                    " FROM bookmarks WHERE url = ?",
+                    (bm.url,),
                 ).fetchone()
                 # None: the source has no tags, so keep the ones recorded.
                 tags = None if bm.tags is None else ",".join(clean_tags(bm.tags))
                 if row:
-                    id_ = row[0]
+                    id_, was_title, was_folder, was_source, was_browser, mine, was_tags = row
+                    # What the import would leave behind, resolved here rather
+                    # than with coalesce() in SQL, so it can be compared.
+                    browser = was_browser if tags is None else tags
+                    wants = (
+                        # No title in the source means it has no name for this
+                        # bookmark, not that its name is nothing, so a title
+                        # the fetch found is kept. An empty *folder* is not
+                        # silence: a bookmark at the top level has none.
+                        bm.title or was_title,
+                        bm.folder,
+                        was_source if source is None else source,
+                        browser,
+                        _join_tags(_split_tags(browser), _split_tags(mine)),
+                    )
+                    if (was_title, was_folder, was_source, was_browser, was_tags) == wants:
+                        continue
                     self.db.execute(
                         """
                         UPDATE bookmarks
-                        SET title = ?, folder = ?, source = coalesce(?, source),
-                            browser_tags = coalesce(?, browser_tags)
+                        SET title = ?, folder = ?, source = ?, browser_tags = ?, tags = ?
                         WHERE id = ?
                         """,
-                        (bm.title, bm.folder, source, tags, id_),
+                        (*wants, id_),
                     )
-                    self._combine_tags(id_)
                     updated += 1
                 else:
                     cursor = self.db.execute(
