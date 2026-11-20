@@ -79,6 +79,20 @@ chain to build the path:
 
 ## Syncing and pruning
 
+**An import that brings nothing new writes nothing.** For each bookmark the
+file and the database have in common, `add_bookmarks` works out what the import
+would leave behind -- title, folder, source, the browser's tags and the
+combined `tags` column -- and compares it with what is stored. If they match,
+the row is left alone and isn't counted as updated, so `N updated` means `N`
+bookmarks changed rather than `N` bookmarks were in both files.
+
+That matters beyond the number. Rewriting a row means deleting and reinserting
+its FTS5 entry, which rewrites an index entry for every token of the page text.
+FTS5 appends segments rather than overwriting them, so the index used to grow
+with every re-import and `VACUUM` did not reclaim it: a 10,000-bookmark
+database grew by about 17 MB and spent 10 seconds each time `markfind sync`
+ran. An unchanged re-import now takes 0.8 seconds and adds nothing.
+
 `markfind sync` is `import` with automatic file discovery. `find_sources()`
 looks in each browser's standard data folder for the current platform:
 

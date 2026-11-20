@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Fixed: `N updated` counted the bookmarks a file and the database had in
+  common, not the ones that changed, so the second and every later
+  `markfind sync` reported every bookmark as updated. It now counts real
+  changes, and a bookmark an import brings nothing new for is left untouched.
+  That also stops the waste behind the number: rewriting a row deletes and
+  reinserts its FTS5 index entry, and FTS5 appends segments rather than
+  overwriting them, so each re-import of a 10,000-bookmark collection grew the
+  database by about 17 MB -- which `VACUUM` could not reclaim -- and took 10
+  seconds. It now takes 0.8 seconds and adds nothing (#93).
+
 - Fixed: importing a `markfind export` gave every bookmark markfind hadn't
   fetched yet its own address as a title. The export writes the address as a
   link's text when there is no title, because a browser needs something

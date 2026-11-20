@@ -229,7 +229,10 @@ def test_sync_imports_and_fetches(tmp_path, browsers, capsys):
     assert run(db, "search", "page", "text") == 0
     assert run(db, "sync") == 0
     out = capsys.readouterr().out
-    assert "Chrome (Work): 0 added, 1 updated" in out
+    # Nothing in either profile changed, so syncing again changes nothing;
+    # see tests/test_reimport.py for what counts as an update.
+    assert "Chrome (Work): 0 added, 0 updated" in out
+    assert "Edge (Default): 0 added, 0 updated" in out
     assert "nothing to fetch" in out
 
 
